@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Serving LLMs in Production: vLLM vs TensorRT-LLM vs SGLang</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --ink:#0f0e0d;--ink2:#3a3835;--ink3:#7a7570;
+    --paper:#faf8f4;--paper2:#f1ede6;--paper3:#e8e2d8;
+    --accent:#c94a1a;--accent2:#1a5fc9;
+    --border:#d4cdc2;
+  }
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Source Serif 4',Georgia,serif;
+    line-height:1.8;
+    font-size:17px;
+    max-width:800px;
+    margin:0 auto;
+    padding:2rem 1.5rem 5rem;
+  }
+
+  /* ── Hero ── */
+  .hero{border-bottom:2px solid var(--ink);padding:3rem 0 2.5rem;margin-bottom:3rem}
+  .label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;letter-spacing:.15em;text-transform:uppercase;
+    color:var(--ink3);margin-bottom:1rem;
+  }
+  h1{
+    font-family:'Playfair Display',serif;
+    font-size:clamp(2rem,5vw,3.2rem);
+    font-weight:700;line-height:1.15;
+    color:var(--ink);margin-bottom:1.5rem;
+  }
+  .hero-sub{font-size:1.15rem;color:var(--ink2);font-style:italic;max-width:620px;line-height:1.7}
+  .hero-meta{
+    margin-top:1.5rem;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;color:var(--ink3);
+    display:flex;gap:2rem;flex-wrap:wrap;
+  }
+
+  /* ── Table of contents ── */
+  .toc{
+    background:var(--paper2);border:1px solid var(--border);
+    border-radius:4px;padding:1.5rem 1.75rem;margin:2.5rem 0;
+    display:grid;grid-template-columns:1fr 1fr;gap:.35rem 2rem;
+  }
+  .toc-title{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;
+    letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink3);grid-column:1/-1;margin-bottom:.5rem;
+  }
+  .toc a{
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;
+    color:var(--ink2);text-decoration:none;
+    display:flex;align-items:baseline;gap:.4rem;
+  }
+  .toc a:hover{color:var(--accent)}
+  .toc-n{color:var(--ink3);min-width:1.2rem}
+
+  /* ── Sections & headings ── */
+  section{margin:3.5rem 0}
+  h2{
+    font-family:'Playfair Display',serif;font-size:1.75rem;font-weight:700;
+    color:var(--ink);margin-bottom:1.25rem;
+    padding-bottom:.6rem;border-bottom:1px solid var(--border);
+  }
+  h3{
+    font-family:'Playfair Display',serif;font-size:1.2rem;font-weight:400;
+    color:var(--ink);margin:2rem 0 .75rem;font-style:italic;
+  }
+  p{margin-bottom:1.2rem;color:var(--ink2)}
+  p:last-child{margin-bottom:0}
+  strong{color:var(--ink)}
+
+  /* ── Pull quote ── */
+  .pullquote{
+    border-left:3px solid var(--accent);
+    padding:1rem 1.5rem;margin:2rem 0;
+    background:var(--paper2);
+  }
+  .pullquote p{font-size:1.1rem;font-style:italic;color:var(--ink);margin:0}
+
+  /* ── Callout boxes ── */
+  .callout{
+    border:1px solid var(--border);border-radius:4px;
+    padding:1.25rem 1.5rem;margin:2rem 0;background:var(--paper2);
+  }
+  .callout-label{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+    letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink3);margin-bottom:.6rem;
+  }
+  .callout p{margin:0;font-size:.95rem}
+  .callout.warn{border-left:3px solid #c97b1a}
+  .callout.insight{border-left:3px solid var(--accent2)}
+  .callout.danger{border-left:3px solid var(--accent)}
+
+  /* ── Two-col cards ── */
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin:2rem 0}
+  .card{border:1px solid var(--border);border-radius:4px;padding:1.25rem;background:var(--paper)}
+  .card-label{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+    letter-spacing:.12em;text-transform:uppercase;margin-bottom:.6rem;
+  }
+  .card-label.v{color:#1a5fc9}
+  .card-label.t{color:#2a5a3a}
+  .card-label.s{color:#8a3ac9}
+  .card p{font-size:.92rem;color:var(--ink2);margin:0}
+
+  /* ── Comparison table ── */
+  .compare-table{width:100%;border-collapse:collapse;margin:2rem 0;font-size:.9rem}
+  .compare-table th{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink3);font-weight:500;text-align:left;
+    padding:.6rem 1rem;border-bottom:2px solid var(--ink);
+    background:var(--paper);
+  }
+  .compare-table td{
+    padding:.75rem 1rem;border-bottom:1px solid var(--border);
+    vertical-align:top;color:var(--ink2);
+  }
+  .compare-table tr:last-child td{border-bottom:none}
+  .compare-table tr:hover td{background:var(--paper2)}
+  .compare-table td:first-child{
+    font-weight:600;color:var(--ink);
+    font-family:'IBM Plex Mono',monospace;font-size:12px;
+  }
+  .badge{
+    display:inline-block;font-family:'IBM Plex Mono',monospace;
+    font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+    padding:2px 7px;border-radius:2px;
+  }
+  .badge.v{background:#ddeeff;color:#185fa5}
+  .badge.t{background:#dff0e4;color:#2a5a3a}
+  .badge.s{background:#eeddff;color:#6a2ab0}
+
+  /* ── Scenario cards ── */
+  .scenario{border:1px solid var(--border);border-radius:4px;margin:1.25rem 0;overflow:hidden}
+  .scenario-header{
+    padding:.75rem 1.25rem;
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:500;
+    display:flex;align-items:center;gap:.6rem;
+  }
+  .scenario-header.v{background:#ddeeff;color:#0c447c}
+  .scenario-header.t{background:#dff0e4;color:#27500a}
+  .scenario-header.s{background:#eeddff;color:#6a2ab0}
+  .scenario-body{padding:1rem 1.25rem;background:var(--paper);font-size:.92rem;color:var(--ink2)}
+  .scenario-body ul{padding-left:1.2rem}
+  .scenario-body li{margin-bottom:.3rem}
+
+  /* ── Failure grid ── */
+  .failure-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:2rem 0}
+  .failure-card{border:1px solid #f0a090;border-radius:4px;padding:1.1rem;background:#fff8f6}
+  .failure-card h4{
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;
+    color:#a32d2d;margin-bottom:.5rem;
+    text-transform:uppercase;letter-spacing:.08em;
+  }
+  .failure-card p{font-size:.88rem;color:var(--ink2);margin:0}
+
+  /* ── Trends ── */
+  .trend-row{display:flex;align-items:flex-start;gap:1rem;padding:.9rem 0;border-bottom:1px solid var(--border)}
+  .trend-row:last-child{border-bottom:none}
+  .trend-dot{width:8px;height:8px;border-radius:50%;background:var(--accent2);margin-top:.45rem;flex-shrink:0}
+  .trend-row p{font-size:.95rem;color:var(--ink2);margin:0}
+  .trend-row strong{color:var(--ink)}
+
+  /* ── Phase boxes ── */
+  .phase-box{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:2rem 0}
+  .phase{padding:1.25rem;border-radius:4px;border:1px solid var(--border)}
+  .phase.prefill{background:#fff8f0;border-color:#f0c090}
+  .phase.decode{background:#f0f4ff;border-color:#90a8f0}
+  .phase h4{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem}
+  .phase.prefill h4{color:#854f0b}
+  .phase.decode h4{color:#185fa5}
+  .phase p{font-size:.9rem;color:var(--ink2);margin:0}
+
+  /* ── Conclusion ── */
+  .conclusion-box{
+    border:2px solid var(--ink);border-radius:4px;
+    padding:2rem;margin:3rem 0;background:var(--paper2);
+  }
+  .conclusion-box p{font-size:1.05rem;color:var(--ink);margin-bottom:1rem}
+  .conclusion-box p:last-child{margin:0;font-style:italic;color:var(--ink3);font-size:.95rem}
+
+  /* ── Footer ── */
+  .footnote{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;
+    color:var(--ink3);border-top:1px solid var(--border);
+    padding-top:1.5rem;margin-top:3rem;
+  }
+
+  /* ── Responsive ── */
+  @media(max-width:580px){
+    .two-col,.failure-grid,.phase-box,.toc{grid-template-columns:1fr}
+    .compare-table{font-size:.8rem}
+    .compare-table th,.compare-table td{padding:.5rem .7rem}
+    body{padding:1.25rem 1rem 3rem}
+  }
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<header class="hero">
+  <div class="label">Engineering deep dive · LLM Infrastructure</div>
+  <h1>Serving LLMs in Production: vLLM vs TensorRT-LLM vs SGLang</h1>
+  <p class="hero-sub">What actually matters when you move past "run a model" and start managing memory, latency, and concurrency under real workloads.</p>
+  <div class="hero-meta">
+    <span>~18 min read</span>
+    <span>System design</span>
+    <span>Production inference</span>
+  </div>
+</header>
+
+<!-- Table of Contents -->
+<nav>
+  <div class="toc">
+    <div class="toc-title">Contents</div>
+    <a href="#inference"><span class="toc-n">01</span> Inference anatomy</a>
+    <a href="#kvcache"><span class="toc-n">02</span> The KV cache bottleneck</a>
+    <a href="#naive"><span class="toc-n">03</span> Naive serving</a>
+    <a href="#vllm"><span class="toc-n">04</span> vLLM</a>
+    <a href="#tensorrt"><span class="toc-n">05</span> TensorRT-LLM</a>
+    <a href="#sglang"><span class="toc-n">06</span> SGLang</a>
+    <a href="#compare"><span class="toc-n">07</span> Direct comparison</a>
+    <a href="#when"><span class="toc-n">08</span> When to use what</a>
+    <a href="#sysdesign"><span class="toc-n">09</span> System design thinking</a>
+    <a href="#failures"><span class="toc-n">10</span> Failure modes</a>
+    <a href="#trends"><span class="toc-n">11</span> Future trends</a>
+  </div>
+</nav>
+
+<!-- Intro -->
+<div class="pullquote">
+  <p>Serving LLMs isn't about running a model — it's about managing memory, latency, and concurrency under real workloads. Everything else is a consequence of that.</p>
+</div>
+
+<p>This post explains how the three dominant serving frameworks — vLLM, TensorRT-LLM, and SGLang — actually work, where each one wins, and what happens when you pick the wrong one. By the end, you'll have a clear mental model for any system design conversation involving LLM infrastructure.</p>
+<p>Three constraints govern every serving decision you'll ever make:</p>
+
+<div class="two-col">
+  <div class="card"><div class="card-label v">Latency</div><p>Time-to-first-token and per-token generation speed. The user-facing metric. Bad latency kills products.</p></div>
+  <div class="card"><div class="card-label t">Throughput</div><p>Tokens/sec across all users. The cost metric. Low throughput means expensive GPUs sitting idle.</p></div>
+</div>
+<div class="card" style="margin-bottom:2rem">
+  <div class="card-label s">Memory</div>
+  <p>KV cache dominates GPU memory during inference. It grows with context length and concurrent users — and it's almost always the real bottleneck, not compute.</p>
+</div>
+
+<!-- Section 01 -->
+<section id="inference">
+  <h2>01 — What happens during inference</h2>
+  <p>Every LLM generation has two distinct phases with different computational profiles. Understanding this split is non-negotiable — all three frameworks are designed around it.</p>
+  <div class="phase-box">
+    <div class="phase prefill">
+      <h4>Prefill phase</h4>
+      <p>The full prompt is processed in one forward pass. Compute-heavy: all tokens processed in parallel. Fast in wall-clock time, but expensive in FLOPs. Produces the first output token.</p>
+    </div>
+    <div class="phase decode">
+      <h4>Decode phase</h4>
+      <p>Tokens generated one at a time. Memory-bound: each step requires reading the entire KV cache from GPU memory. This is the slow part — and it's why memory bandwidth matters more than raw FLOP count.</p>
+    </div>
+  </div>
+  <div class="callout insight">
+    <div class="callout-label">Key insight</div>
+    <p>Decode is serial and memory-bound. Doubling your GPU's FLOP count does almost nothing for decode speed. What matters is memory bandwidth and cache efficiency — which is exactly what vLLM, TensorRT-LLM, and SGLang are optimizing.</p>
+  </div>
+</section>
+
+<!-- Section 02 -->
+<section id="kvcache">
+  <h2>02 — The real bottleneck: KV cache</h2>
+  <p>During the decode phase, the model needs the key and value tensors for every previous token, across every attention head, in every layer. This is the KV cache — and it's enormous.</p>
+  <p>For a 70B parameter model with a 4096-token context window at 16-bit precision, the KV cache for a single request can consume several gigabytes of GPU memory. Now multiply that by 50 concurrent users.</p>
+  <h3>Why it explodes</h3>
+  <p>KV cache size scales linearly with: number of tokens in context, number of layers, number of attention heads, and the head dimension. With modern long-context models (32K, 128K tokens), this becomes the dominant memory consumer — not the model weights themselves.</p>
+  <div class="callout danger">
+    <div class="callout-label">The real constraint</div>
+    <p>In modern LLM serving, memory — not FLOPs — is the bottleneck. You will hit GPU OOM long before you saturate your compute units.</p>
+  </div>
+  <h3>Problems with naive allocation</h3>
+  <p>If you pre-allocate a fixed memory block per request (the naive approach), you face three compounding problems:</p>
+  <p><strong>Fragmentation:</strong> requests end at different lengths, leaving unusable gaps between allocated blocks. <strong>Wasted space:</strong> pre-allocated blocks must assume worst-case length, so most memory is reserved but unused. <strong>Premature OOM:</strong> the GPU runs out of memory before its compute is anywhere near saturated.</p>
+  <div class="callout insight">
+    <div class="callout-label">Why this matters for framework choice</div>
+    <p>The difference between vLLM, TensorRT-LLM, and SGLang is largely about <em>how each one handles this memory problem</em> — and what tradeoffs they make to solve it.</p>
+  </div>
+</section>
+
+<!-- Section 03 -->
+<section id="naive">
+  <h2>03 — Naive serving: the baseline to beat</h2>
+  <p>Before specialized frameworks existed, the standard approach was simple: one request per GPU, static batching, no KV reuse. Load the model, run a request, return the result, repeat.</p>
+  <p>This works at demo scale. At production scale it falls apart completely:</p>
+  <p><strong>One request per GPU:</strong> your $30K A100 sits at 5% utilization while a single user generates a 200-token response. <strong>Static batching:</strong> you must wait to collect a full batch before starting inference — adding latency to every request. <strong>No KV reuse:</strong> if the same system prompt appears in 1,000 requests, you recompute it 1,000 times.</p>
+  <div class="callout warn">
+    <div class="callout-label">Real-world consequence</div>
+    <p>A naively served 7B model on an A100 might handle 3–5 concurrent users before latency degrades. The same hardware with vLLM can handle 50–100+. The difference is entirely in memory management and batching strategy.</p>
+  </div>
+  <p>This is the gap that vLLM, TensorRT-LLM, and SGLang exist to close — each from a different angle.</p>
+</section>
+
+<!-- Section 04 -->
+<section id="vllm">
+  <h2>04 — vLLM: why it changed everything</h2>
+  <p>vLLM's core contribution is a single elegant idea: apply virtual memory techniques from operating systems to the KV cache problem. The result is Paged Attention — arguably the most important systems innovation in LLM serving.</p>
+  <h3>Paged attention, explained plainly</h3>
+  <p>In a traditional OS, virtual memory lets processes use non-contiguous physical memory by mapping logical pages to physical frames. vLLM does the same for KV cache: instead of one contiguous block per request, it allocates fixed-size blocks (pages) that can live anywhere in GPU memory.</p>
+  <p>Pages are allocated on demand as generation proceeds. When a request ends, its pages are freed immediately. New requests grab those freed pages without waiting for defragmentation. The KV cache manager handles the mapping between logical token positions and physical memory locations.</p>
+  <div class="callout insight">
+    <div class="callout-label">Why this is a big deal</div>
+    <p>Fragmentation drops to near-zero. You can pack far more concurrent requests onto a GPU because memory is used efficiently. Across benchmarks, vLLM achieves 2–4× higher throughput than static allocation on identical hardware.</p>
+  </div>
+  <h3>Continuous batching</h3>
+  <p>Paged Attention enables continuous batching: as soon as one request finishes, its GPU slot is immediately filled by the next waiting request — no idle time, no batch assembly delay. The GPU runs at near-constant utilization.</p>
+  <p>This is the mechanism that drives vLLM's throughput advantage. High GPU utilization means lower cost-per-token, which is what matters in production.</p>
+  <h3>Where vLLM wins and where it doesn't</h3>
+  <p>vLLM is purpose-built for high-concurrency, variable-workload scenarios: chat APIs, multi-tenant systems, anything where many users send requests of unpredictable lengths. Its memory management is excellent and its OpenAI-compatible API makes integration straightforward.</p>
+  <div class="callout warn">
+    <div class="callout-label">Honest limitations</div>
+    <p>vLLM is a general-purpose runtime, not a hardware-optimized one. For absolute minimum latency on a fixed workload, TensorRT-LLM's kernel-level optimizations will beat it. vLLM trades peak single-request performance for throughput and flexibility.</p>
+  </div>
+</section>
+
+<!-- Section 05 -->
+<section id="tensorrt">
+  <h2>05 — TensorRT-LLM: maximum performance path</h2>
+  <p>If vLLM is about memory management, TensorRT-LLM is about extracting every last FLOP from your hardware. NVIDIA's framework compiles models into highly optimized CUDA kernels, applying transformations that a generic runtime simply can't.</p>
+  <h3>What it actually does under the hood</h3>
+  <p><strong>Operator fusion:</strong> multiple operations that would execute sequentially (layernorm → attention → projection) are fused into a single CUDA kernel. Fewer kernel launches, fewer memory round-trips, lower latency. <strong>Quantization:</strong> FP8 and INT8 quantization reduce memory bandwidth requirements and unlock specialized hardware units (Tensor Cores on H100s operate natively at FP8). <strong>Graph optimization:</strong> the entire compute graph is analyzed at compile time and restructured to minimize memory transfers between compute steps.</p>
+  <h3>The compile-time tradeoff</h3>
+  <p>TensorRT-LLM "builds" an engine for a specific model, precision, batch size, and sequence length configuration. This build step takes minutes to hours — but the result is a binary optimized specifically for your GPU and workload. It's the difference between a JIT-compiled script and a hand-tuned C binary.</p>
+  <div class="callout insight">
+    <div class="callout-label">When this matters</div>
+    <p>For latency-critical applications — real-time coding assistants, voice interfaces, anything where time-to-first-token determines user experience — TensorRT-LLM's kernel optimizations can deliver 30–60% lower latency than vLLM on identical hardware.</p>
+  </div>
+  <h3>The flexibility cost</h3>
+  <p>That compile-time optimization is also TensorRT-LLM's biggest constraint. Changing model architecture, quantization scheme, or sequence length means rebuilding the engine. For teams iterating rapidly on models or serving diverse workloads, this operational cost adds up fast.</p>
+  <div class="callout warn">
+    <div class="callout-label">Honest limitations</div>
+    <p>TensorRT-LLM is the right choice when you know exactly what you're running, can invest setup time upfront, and the workload is stable. It's the wrong choice if your team ships model updates weekly or serves highly variable request sizes.</p>
+  </div>
+</section>
+
+<!-- Section 06 -->
+<section id="sglang">
+  <h2>06 — SGLang: the orchestration layer</h2>
+  <p>SGLang addresses a different problem entirely. Where vLLM and TensorRT-LLM are runtime engines, SGLang is a structured generation framework — it's about controlling <em>what</em> the model produces and <em>how</em> multi-step generation flows are coordinated.</p>
+  <h3>The problem it solves</h3>
+  <p>Modern LLM applications rarely involve a single prompt and response. They involve chains: generate a plan, execute tools based on the plan, use tool results to generate the next step, validate output format, retry on failure. Orchestrating this with raw API calls is brittle and slow — you're spending more time on round-trips and JSON parsing than on actual inference.</p>
+  <p>SGLang provides primitives for expressing these multi-step flows, with the runtime handling batching and scheduling across steps automatically. Critically, it supports RadixAttention — prefix caching that reuses KV cache across requests sharing a common prefix (e.g., a system prompt), eliminating redundant computation.</p>
+  <div class="callout insight">
+    <div class="callout-label">The core insight</div>
+    <p>For agentic workloads, the bottleneck isn't single-request latency — it's the overhead of coordinating many short, interdependent generations. SGLang's structured approach reduces this overhead significantly while keeping each generation fast.</p>
+  </div>
+  <h3>What it's not</h3>
+  <p>SGLang isn't a replacement for vLLM or TensorRT-LLM at the kernel level — it typically runs on top of one of them. Think of it as the layer between your application logic and the raw inference engine. You get structured generation control, prefix caching, and pipeline orchestration; the underlying runtime provides the actual token generation.</p>
+  <div class="callout warn">
+    <div class="callout-label">Honest limitations</div>
+    <p>SGLang adds abstraction overhead. For simple, single-turn request/response patterns, that abstraction buys you nothing — you'd be better served by vLLM directly. Its value accrues with complexity: the more multi-step your generation flow, the more it pays off.</p>
+  </div>
+</section>
+
+<!-- Section 07 -->
+<section id="compare">
+  <h2>07 — Direct comparison</h2>
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th>Dimension</th>
+        <th><span class="badge v">vLLM</span></th>
+        <th><span class="badge t">TensorRT-LLM</span></th>
+        <th><span class="badge s">SGLang</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Primary focus</td><td>Memory efficiency + batching</td><td>Kernel-level optimization</td><td>Structured generation + orchestration</td></tr>
+      <tr><td>Core innovation</td><td>Paged Attention</td><td>Operator fusion, FP8/INT8</td><td>RadixAttention, prefix caching</td></tr>
+      <tr><td>Throughput</td><td>Excellent (continuous batching)</td><td>High (fixed workloads)</td><td>Good (pipeline-aware)</td></tr>
+      <tr><td>Latency (single req)</td><td>Good</td><td>Best</td><td>Depends on backend</td></tr>
+      <tr><td>Flexibility</td><td>High</td><td>Low (compile-time)</td><td>High</td></tr>
+      <tr><td>Setup complexity</td><td>Low</td><td>High</td><td>Medium</td></tr>
+      <tr><td>Best for</td><td>Multi-user APIs, variable load</td><td>Fixed workloads, latency-critical</td><td>Agents, tools, complex pipelines</td></tr>
+      <tr><td>Weakness</td><td>Not hardware-tuned</td><td>Rigid, slow to iterate</td><td>Not a standalone runtime</td></tr>
+    </tbody>
+  </table>
+  <div class="callout insight">
+    <div class="callout-label">The key takeaway</div>
+    <p>These frameworks aren't competing for the same use case. They solve different layers of the serving problem. In sophisticated production systems, you'll often see them combined: TensorRT-LLM as the execution backend, vLLM's batching strategy on top, SGLang orchestrating multi-step flows at the application layer.</p>
+  </div>
+</section>
+
+<!-- Section 08 -->
+<section id="when">
+  <h2>08 — When to use what</h2>
+  <p>This is the section that matters in system design interviews. Scenario-first thinking beats memorized facts every time.</p>
+
+  <div class="scenario">
+    <div class="scenario-header v">vLLM — reach for this first</div>
+    <div class="scenario-body">
+      <ul>
+        <li>You're building a multi-tenant chat API or inference endpoint</li>
+        <li>Request sizes are variable and unpredictable</li>
+        <li>You need high throughput and good GPU utilization</li>
+        <li>You're iterating on models frequently (no compile-time penalty)</li>
+        <li>You need an OpenAI-compatible API surface quickly</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="scenario">
+    <div class="scenario-header t">TensorRT-LLM — when latency is non-negotiable</div>
+    <div class="scenario-body">
+      <ul>
+        <li>Time-to-first-token is a product requirement (voice, real-time coding)</li>
+        <li>Your model is stable — you're not shipping updates weekly</li>
+        <li>Traffic patterns are predictable (fixed batch sizes, known sequence lengths)</li>
+        <li>You have engineering bandwidth for the build/deploy pipeline</li>
+        <li>You're on NVIDIA hardware and want to extract maximum value from it</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="scenario">
+    <div class="scenario-header s">SGLang — when generation structure matters</div>
+    <div class="scenario-body">
+      <ul>
+        <li>You're building agents that chain multiple model calls</li>
+        <li>Tool use, structured JSON output, or constrained generation is required</li>
+        <li>Many requests share a long common prefix (system prompt reuse)</li>
+        <li>You want to express multi-step reasoning flows declaratively</li>
+        <li>Pipeline coordination overhead is hurting performance</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="pullquote">
+    <p>In practice, these are often combined — not mutually exclusive. A mature production stack might use SGLang for orchestration, vLLM for memory management, and TensorRT-LLM for latency-critical paths.</p>
+  </div>
+</section>
+
+<!-- Section 09 -->
+<section id="sysdesign">
+  <h2>09 — System design thinking</h2>
+  <h3>GPU utilization vs tail latency</h3>
+  <p>Continuous batching increases throughput by keeping GPUs busy — but it does so by interleaving requests. A long-running request shares decode cycles with shorter ones. The long request sees higher latency than if it ran alone. This is the core tension: optimizing for utilization hurts tail latency, and optimizing for tail latency wastes utilization.</p>
+  <p>The right balance depends on your SLA. A batch inference job has no tail latency requirement — maximize utilization. A real-time chat product has strict P99 requirements — cap batch size and accept lower utilization.</p>
+  <h3>Memory pressure and admission control</h3>
+  <p>When KV cache fills up, you have two choices: reject the incoming request or pause and preempt an existing one. Preemption (swapping KV cache to CPU memory) preserves fairness but adds latency. Rejection is simpler but degrades user experience during spikes.</p>
+  <p>Production systems need explicit admission control logic — a simple queue in front of the inference engine that enforces memory budgets before requests enter the system. Without this, you get cascading OOMs under load.</p>
+  <h3>The max-tokens vs concurrency tradeoff</h3>
+  <p>Allowing longer max_tokens per request directly reduces the number of concurrent requests you can serve — it's not a free parameter. A system that allows 8K token responses will support 4× fewer concurrent users than one capped at 2K tokens, all else equal. This needs to be a conscious product decision, not an implementation default.</p>
+  <div class="callout insight">
+    <div class="callout-label">System design signal</div>
+    <p>The best answers to LLM serving questions don't pick a framework — they reason about the tradeoff space (memory, latency, throughput, flexibility) and then select accordingly. That reasoning is what interviewers are actually evaluating.</p>
+  </div>
+</section>
+
+<!-- Section 10 -->
+<section id="failures">
+  <h2>10 — Failure modes</h2>
+  <div class="failure-grid">
+    <div class="failure-card">
+      <h4>KV cache OOM</h4>
+      <p>Traffic spike hits, KV cache fills, GPU OOMs. Whole server dies. Fix: admission control + explicit memory budgets before requests enter the system.</p>
+    </div>
+    <div class="failure-card">
+      <h4>Latency spikes from batching</h4>
+      <p>A few long-running requests get scheduled together. P99 explodes. Fix: max sequence length limits per batch, or priority-based scheduling.</p>
+    </div>
+    <div class="failure-card">
+      <h4>Fragmentation without paged attention</h4>
+      <p>Static allocation leaves gaps between freed blocks. GPU appears to have memory, but no contiguous block large enough for new requests. Fix: use paged attention (i.e., use vLLM).</p>
+    </div>
+    <div class="failure-card">
+      <h4>Underutilized GPUs</h4>
+      <p>Batch size too small, or static batching introduces wait time. GPU runs at 15% utilization. Fix: continuous batching + autoscaling on queue depth, not just GPU %.</p>
+    </div>
+    <div class="failure-card">
+      <h4>TensorRT engine mismatch</h4>
+      <p>Model updated, but engine not rebuilt. Silent degradation or crash at runtime. Fix: engine versioning tied to model checksum in your CI/CD pipeline.</p>
+    </div>
+    <div class="failure-card">
+      <h4>Prefix cache invalidation</h4>
+      <p>System prompt changed, but SGLang's RadixAttention cache wasn't cleared. Stale cache causes incorrect outputs. Fix: explicit cache invalidation on any shared prefix update.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 11 -->
+<section id="trends">
+  <h2>11 — Where this is heading</h2>
+  <div class="trend-row">
+    <div class="trend-dot"></div>
+    <p><strong>Speculative decoding:</strong> a small draft model generates candidate tokens; the large model verifies multiple tokens in parallel. Can deliver 2–3× decode speedup with no quality loss. Already shipping in TensorRT-LLM and increasingly in vLLM.</p>
+  </div>
+  <div class="trend-row">
+    <div class="trend-dot"></div>
+    <p><strong>KV cache compression:</strong> quantizing the KV cache itself (not just weights) to INT8 or INT4 can halve memory usage with minimal quality impact. Active research area with production implications.</p>
+  </div>
+  <div class="trend-row">
+    <div class="trend-dot"></div>
+    <p><strong>Disaggregated prefill/decode:</strong> running prefill and decode on separate GPU pools, since they have different computational profiles. Early results show significant throughput gains for long-context workloads.</p>
+  </div>
+  <div class="trend-row">
+    <div class="trend-dot"></div>
+    <p><strong>Hardware-aware schedulers:</strong> scheduling decisions that account for GPU memory topology, NVLink bandwidth, and PCIe bottlenecks — not just token counts. Nascent area with large potential upside.</p>
+  </div>
+</section>
+
+<!-- Conclusion -->
+<div class="conclusion-box">
+  <p>Serving LLMs is no longer about running models — it's about managing memory, scheduling, and system tradeoffs at scale. vLLM solves the memory problem. TensorRT-LLM solves the latency problem. SGLang solves the orchestration problem. Understanding which problem you actually have is the key decision factor.</p>
+  <p></p>
+</div>
+
+<footer class="footnote">
+  Topics covered: LLM inference · KV cache · Paged Attention · vLLM · TensorRT-LLM · SGLang · Continuous batching · System design
+</footer>
+
+</body>
+</html>

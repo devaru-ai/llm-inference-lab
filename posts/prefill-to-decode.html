@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>From Prefill to Decode — Arundhathi Dev</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --ink:#0f0e0d;
+      --ink2:#3a3835;
+      --ink3:#7a7570;
+      --surf:#faf8f4;
+      --surf2:#f1ede6;
+      --surf3:#e8e2d8;
+      --border:#d4cdc2;
+      --border2:#bfb8b0;
+    }
+    html{scroll-behavior:smooth}
+    body{font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.75;color:var(--ink);background:var(--surf);max-width:800px;margin:0 auto;padding:0 1.5rem 5rem}
+
+    nav{display:flex;justify-content:space-between;align-items:center;padding:1.25rem 0;border-bottom:0.5px solid var(--border);margin-bottom:0}
+    .nav-name{font-family:'DM Serif Display',serif;font-size:1.1rem;color:var(--ink);text-decoration:none}
+    .nav-name:hover{color:var(--ink3)}
+    .nav-links{list-style:none;display:flex;gap:1.5rem}
+    .nav-links a{font-family:'DM Mono',monospace;font-size:11.5px;color:var(--ink3);text-decoration:none;letter-spacing:.05em}
+    .nav-links a:hover{color:var(--ink)}
+
+    .post-header{padding:3rem 0 2.5rem;border-bottom:1.5px solid var(--ink)}
+    .post-tag{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);display:block;margin-bottom:1rem}
+    .post-header h1{font-family:'DM Serif Display',serif;font-size:clamp(1.9rem,4.5vw,2.9rem);line-height:1.15;color:var(--ink);margin-bottom:1.25rem}
+    .post-meta{display:flex;gap:1.5rem;font-family:'DM Mono',monospace;font-size:11.5px;color:var(--ink3)}
+
+    .toc{margin:2.5rem 0;padding:1.5rem;background:var(--surf2);border-radius:8px;border:0.5px solid var(--border)}
+    .toc-head{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:.75rem}
+    .toc-grid{display:grid;grid-template-columns:1fr 1fr;gap:.3rem 2rem}
+    .toc a{font-family:'DM Mono',monospace;font-size:12px;color:var(--ink2);text-decoration:none;display:flex;gap:.5rem}
+    .toc a:hover{color:#185fa5}
+    .toc-n{color:var(--ink3);min-width:1.4rem}
+
+    .post-body{margin-top:3rem}
+    .section-num{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin-bottom:.4rem}
+    h1.section-h{font-family:'DM Serif Display',serif;font-size:1.75rem;color:var(--ink);margin-bottom:1.2rem;padding-bottom:.6rem;border-bottom:0.5px solid var(--border);margin-top:3.5rem}
+    h3{font-family:'DM Sans',sans-serif;font-size:.85rem;font-weight:500;color:var(--ink);margin:1.75rem 0 .6rem;text-transform:uppercase;letter-spacing:.06em}
+    p{color:var(--ink2);margin-bottom:1.1rem}
+    p:last-child{margin-bottom:0}
+    strong{color:var(--ink)}
+    em{font-style:italic}
+    code{font-family:'DM Mono',monospace;font-size:.85em;background:var(--surf3);padding:1px 5px;border-radius:3px;color:var(--ink2)}
+    pre{background:var(--surf2);border:0.5px solid var(--border);border-radius:8px;padding:1.1rem 1.25rem;margin:1.5rem 0;overflow-x:auto}
+    pre code{background:none;padding:0;font-size:.83rem;color:var(--ink2)}
+    ul{padding-left:1.3rem;margin-bottom:1.1rem;color:var(--ink2)}
+    ul li{margin-bottom:.4rem}
+
+    .callout{background:var(--surf2);border:0.5px solid var(--border);border-left:3px solid var(--border2);border-radius:0 8px 8px 0;padding:1.1rem 1.4rem;margin:1.75rem 0;font-size:.93rem;color:var(--ink2)}
+    .callout strong{color:var(--ink)}
+
+    .pullquote{border-left:3px solid #185fa5;padding:.9rem 1.4rem;margin:2rem 0}
+    .pullquote p{font-family:'DM Serif Display',serif;font-size:1.1rem;font-style:italic;color:var(--ink);margin:0}
+    
+    
+    .widget-container{margin:2.5rem 0}
+    .widget-container iframe{border:0px solid var(--border);border-radius:12px;display:block}
+
+    .back-link{display:inline-block;font-family:'DM Mono',monospace;font-size:12px;color:var(--ink3);text-decoration:none;margin-top:3.5rem;border-top:0.5px solid var(--border);padding-top:1.5rem;width:100%}
+    .back-link:hover{color:var(--ink)}
+    footer{display:flex;justify-content:space-between;align-items:center;padding:1.5rem 0;margin-top:1rem;border-top:0.5px solid var(--border);font-family:'DM Mono',monospace;font-size:11.5px;color:var(--ink3)}
+    footer a{color:var(--ink3);text-decoration:none}
+    footer a:hover{color:var(--ink)}
+    footer div{display:flex;gap:1rem}
+
+    @media(max-width:540px){.toc-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a class="nav-name" href="../index.html">Arundhathi Dev</a>
+    <ul class="nav-links">
+      <li><a href="https://github.com/devaru-ai" target="_blank">github</a></li>
+      <li><a href="https://www.linkedin.com/in/devaru-ai/" target="_blank">linkedin</a></li>
+    </ul>
+  </nav>
+
+  <div class="post-header">
+    <span class="post-tag">LLM Inference · Systems</span>
+    <h1>From Prefill to Decode: How Modern LLM Inference Actually Works</h1>
+    <div class="post-meta">
+      <span>Mar 2026</span>
+      <span>20 min read</span>
+    </div>
+  </div>
+
+  <div class="toc">
+    <div class="toc-head">Contents</div>
+    <div class="toc-grid">
+      <a href="#s1"><span class="toc-n">01</span>When you send a prompt</a>
+      <a href="#s2"><span class="toc-n">02</span>Prefill vs decode</a>
+      <a href="#s3"><span class="toc-n">03</span>KV cache</a>
+      <a href="#s4"><span class="toc-n">04</span>Continuous batching</a>
+      <a href="#s5"><span class="toc-n">05</span>Chunked prefill</a>
+      <a href="#s6"><span class="toc-n">06</span>Speculative decoding</a>
+      <a href="#s7"><span class="toc-n">07</span>Disaggregated serving</a>
+      <a href="#s8"><span class="toc-n">08</span>Cost &amp; tradeoffs</a>
+    </div>
+  </div>
+
+  <div class="post-body">
+
+    <div class="pullquote">
+      <p>Sending a prompt to an LLM seems simple. Under the hood, modern inference systems are juggling memory, compute, and latency constraints to make that happen in real time.</p>
+    </div>
+
+    <p>Understanding inference isn't just about knowing tricks like KV caching or chunked prefill — it's about seeing the whole flow of computation, where every design choice impacts performance, memory, and cost.</p>
+
+    <div class="widget-container">
+      <iframe src="llm-inference-widget.html" width="100%" height="550px" title="LLM Inference Interactive Widget"></iframe>
+    </div>
+
+    <!-- Section 1 -->
+    <!--<div class="section-num" id="s1">01</div>-->
+    <h1 class="section-h">01. What happens when you send a prompt to an LLM</h1>
+
+    <p>When you hit send, your message doesn't arrive at the model as text. The first thing that happens is tokenisation — your string gets broken into a sequence of token IDs, integers that map to subword chunks in the model's vocabulary. The word "unbelievable" might become three tokens: <code>un</code>, <code>believ</code>, <code>able</code>. A space before a word is often its own token. Punctuation splits in ways that feel arbitrary until you've stared at enough BPE output. The point is: the model never sees characters or words. It sees a list of integers.</p>
+
+    <p>Those integers get looked up in an embedding table, turning each token ID into a dense vector — typically 4,000 to 16,000 dimensions depending on the model. Now you have a matrix: one row per token, one column per dimension. This is the actual input to the transformer.</p>
+
+    <h3>The forward pass</h3>
+
+    <p>The model runs this matrix through a stack of layers — typically 32 to 96 of them in modern LLMs. Each layer applies self-attention and a feed-forward network. The details of how attention works matter a lot for later sections, but the key mechanical fact right now is this: all tokens are processed in parallel. The entire input matrix flows through the network in one shot. This is called the prefill pass, and it's the most compute-intensive thing that happens during inference.</p>
+
+    <p>At the end of the forward pass, the model produces a vector of logits — one score per token in the vocabulary (often 32,000 to 128,000 entries). A softmax turns these into probabilities. Sampling picks the next token: greedy decoding takes the highest probability token, temperature sampling introduces randomness by scaling the logits before softmax. Either way, you get back a single integer — the next token ID.</p>
+
+    <p>That token gets decoded back to text and appended to the output. Then the process repeats: the model runs another forward pass, this time over the original prompt <em>plus</em> the token it just generated, and produces the next one. And the next. And the next. One token per forward pass, until the model outputs an end-of-sequence token or hits a length limit.</p>
+
+    <h3>The problem </h3>
+
+    <p>Here's what this looks like from the GPU's perspective. Say your prompt is 500 tokens and the model generates 200 tokens of output.</p>
+
+    <ul>
+      <li><strong>Prefill:</strong> one forward pass over 500 tokens. Expensive, but you do it once.</li>
+      <li><strong>Decode:</strong> 200 forward passes. Each one processes the full context — which grows by one token every step.</li>
+    </ul>
+
+    <p>By the time you're generating token 200, the model is running a forward pass over 700 tokens to produce a single integer. Most of that work — computing representations for all 699 previous tokens — is identical to what it did on the previous step. You're recomputing the same thing, over and over, slightly extended each time.</p>
+
+    <p>At small scale, this is annoying. At production scale, serving thousands of requests simultaneously, this is the central bottleneck. It's the reason inference is expensive, latency is high, and GPU utilisation is lower than you'd expect.</p>
+
+    <p>Everything else in this post is about how the systems that serve LLMs in production deal with exactly this problem.</p>
+
+    <!-- Section 2 -->
+    <h1 class="section-h">02. Prefill vs decode: compute vs memory bound</h1>
+
+    <p>The forward pass described above isn't one uniform operation. It has two distinct phases with fundamentally different resource profiles, and understanding this distinction is the key to understanding every optimisation in the rest of this post.</p>
+
+    <p><strong>Prefill</strong> processes all input tokens simultaneously. Mechanically, this means large matrix multiplications — the kind of work GPUs were built for. Every CUDA core is busy. Memory bandwidth isn't the bottleneck because you're doing a lot of arithmetic per byte you load. This phase is <em>compute-bound</em>: the ceiling is how many floating point operations per second your hardware can execute.</p>
+
+    <p><strong>Decode</strong> generates one token at a time. Each step loads the full model weights from GPU memory, does a relatively small amount of arithmetic on them, and produces a single output vector. You're doing very little compute per byte loaded. The GPU cores sit mostly idle while the memory subsystem scrambles to feed them. This phase is <em>memory-bound</em>: the ceiling is how fast weights can be streamed from HBM into the compute units.</p>
+
+    <p>This isn't a subtle distinction. A modern H100 can do around 2,000 TFLOPS of bf16 compute but only has ~3.4 TB/s of memory bandwidth. The arithmetic intensity of decode is so low that you're leaving the vast majority of that compute capacity unused. For a 70B parameter model in bf16, just loading the weights once takes about 140GB of bandwidth. At 3.4 TB/s, that's ~40ms per token, before you've done any actual computation. That's your latency floor.</p>
+
+    <p>The practical consequence: prefill is fast and efficient, decode is slow and wasteful. A prompt with 1,000 tokens prefills in roughly the same time it takes to decode 5–10 output tokens. Yet decode is where most of the wall-clock time goes, because outputs are often hundreds or thousands of tokens long.</p>
+
+    <div class="callout">
+      The key mental model going forward: every technique in this post is ultimately trying to either make decode less wasteful, or hide its cost behind something else.
+    </div>
+
+    <!-- Section 3 -->
+    <h1 class="section-h">03. KV cache: avoiding recomputation</h1>
+
+    <p>Let's look at why decode is so wasteful and fix the most obvious problem first.</p>
+
+    <p>During the prefill pass, as each token attends to every other token, the model computes two vectors per token per attention layer: a <strong>key</strong> and a <strong>value</strong>. These encode what each token "offers" to the attention mechanism — the key is what the token is, the value is what it contributes to the output if attended to.</p>
+
+    <p>In the naive implementation, every decode step recomputes these key and value vectors for every token in the context. Step 1 computes KVs for 500 tokens. Step 2 computes KVs for 501 tokens. Step 3 computes KVs for 502 tokens. The work grows linearly with context length, and almost all of it is redundant — token 1's key and value vectors are identical in step 2 and step 3. Nothing about them has changed.</p>
+
+    <p>The fix is obvious once you see it: cache them.</p>
+
+    <p>After the prefill pass, instead of discarding the key and value tensors for every layer and every token, the serving system keeps them in GPU memory. This is the KV cache. During decode, each new token only needs to compute its own KV vectors — one row — and then attend over the full cache to produce its output. The context from previous steps costs nothing to reuse.</p>
+
+    <p>This changes the computational complexity of decode from O(n²) per sequence to O(n) per step. For long contexts, this is the difference between a system that grinds to a halt and one that runs at a consistent pace.</p>
+
+    <h3>What it costs</h3>
+
+    <p>The KV cache isn't free. For each token in context, you're storing two tensors (K and V) per layer, per attention head. For a model with 96 layers, 96 attention heads, and head dimension 128, each token occupies:</p>
+
+<pre><code>KV cache per token = 2 × layers × head_dim × dtype_bytes
+                   = 2 × 96 × 128 × 2  (bf16)
+                   = 49,152 bytes ≈ 48KB per token</code></pre>
+
+    <p>A sequence of 4,096 tokens takes ~192MB of KV cache. At 32,768 tokens, that's 1.5GB — for a single sequence. Run 100 concurrent requests and you're looking at 150GB of KV cache alone, before model weights.</p>
+
+    <p>This is why KV cache memory management is one of the central problems in LLM serving. Systems like vLLM introduced paged attention — borrowing the idea of virtual memory from operating systems — to allocate KV cache in fixed-size blocks rather than contiguous chunks, dramatically reducing fragmentation and allowing more sequences to fit simultaneously.</p>
+
+    <h3>What it unlocks</h3>
+
+    <p>The KV cache is the enabling primitive for almost everything else in this post. Continuous batching depends on it. Speculative decoding depends on it. Disaggregated serving is largely a problem of moving it efficiently between machines. Understanding how it works — and what it costs — is the prerequisite for understanding why the rest of the system looks the way it does.</p>
+
+    <!-- Section 4 -->
+    <h1 class="section-h">04. Continuous batching: keeping GPUs busy</h1>
+
+    <p>The KV cache solves recomputation within a sequence. The next problem is utilisation across sequences.</p>
+
+    <p>In the early days of LLM serving, systems used static batching: collect a group of requests, run them together as a batch, wait for every sequence in the batch to finish, then accept new requests. The logic was borrowed from traditional deep learning inference — batch your inputs, amortise the fixed costs, move on.</p>
+
+    <p>The problem is that language model outputs have wildly variable lengths. One request might finish in 20 tokens. Another might run for 2,000. With static batching, the short requests finish and their GPU slots sit empty, waiting for the longest sequence to complete before anything new can start. You're paying for a full batch worth of compute but only using a fraction of it.</p>
+
+    <p>The fix is continuous batching, sometimes called iteration-level scheduling. Instead of treating the batch as a fixed unit of work, the scheduler makes decisions at every decode iteration. When a sequence finishes — when it emits an end-of-sequence token — its slot is immediately freed and a new request is inserted into the batch for the next iteration. The batch composition changes dynamically, step by step, rather than staying fixed until everyone is done.</p>
+
+    <p>This sounds simple. The implementation detail that makes it work is that prefill and decode can be interleaved within the same iteration. A new request arriving mid-batch needs to be prefilled before it can start decoding. Continuous batching systems handle this by running the prefill for new sequences and the decode steps for existing sequences in the same forward pass, treating them as different "types" of tokens in the same batch.</p>
+
+    <h3>What this does to throughput</h3>
+
+    <p>The effect on GPU utilisation is substantial. With static batching, utilisation follows a sawtooth pattern — high while the batch runs, dropping toward zero as sequences finish and slots empty before the next batch starts. With continuous batching, the GPU stays near-saturated continuously. New work fills in as fast as old work finishes.</p>
+
+    <p>Systems like vLLM and NVIDIA's TensorRT-LLM report 2–4x throughput improvements from continuous batching alone over static batching baselines, depending on the variance in output lengths. The gains are largest when request lengths vary a lot — exactly the condition that real-world traffic produces.</p>
+
+    <h3>The new bottleneck</h3>
+
+    <p>Continuous batching shifts the constraint. With static batching, the bottleneck was the mismatch between batch lifecycle and request arrival. With continuous batching, the bottleneck becomes KV cache memory: how many sequences you can hold in the batch simultaneously is now determined by how much GPU memory is available for their KV caches. This is why vLLM's paged attention mattered so much. Efficient KV memory management and dynamic batching solve different parts of the same problem, and you need both.</p>
+
+    <!-- Section 5 -->
+    <h1 class="section-h">05. Chunked prefill: batching long prompts</h1>
+
+    <p>Continuous batching keeps the GPU busy across requests. But it introduces a subtle latency problem when requests have very long prompts.</p>
+
+    <p>Recall that prefill is compute-bound — it does a lot of work per token, and for a long prompt, that work takes real time. A 32,768-token system prompt might take 500ms or more to prefill on a single GPU. During that entire time, every other sequence in the batch is frozen mid-decode. No decode steps happen. No new tokens are emitted. Every user waiting on an in-progress response experiences a stall.</p>
+
+    <p>This creates a direct conflict between two metrics that serving systems care about. <strong>Time to first token (TTFT)</strong> — how long a new request waits before seeing its first output token — is dominated by prefill time. <strong>Time per output token (TPOT)</strong> — the per-step latency experienced by ongoing decode sequences — is disrupted every time a long prefill lands in the batch. Optimising for one hurts the other.</p>
+
+    <p>Chunked prefill resolves this by breaking large prefill jobs into smaller pieces. Instead of running the full prefill for a new request in one shot, the scheduler splits it into chunks of a fixed token budget — say, 512 or 1,024 tokens per chunk — and spreads those chunks across multiple iterations, interleaving them with decode steps.</p>
+
+    <p>A long 8,192-token prompt might be processed as 8 chunks of 1,024 tokens. Between each chunk, the scheduler runs a decode step for all ongoing sequences. The new request takes 8 iterations to fully prefill instead of 1, but in exchange, existing sequences never stall for more than one decode step's worth of time.</p>
+
+    <h3>Tuning the chunk size</h3>
+
+    <p>The chunk size is a tunable parameter that trades TTFT against TPOT. Larger chunks mean the new request prefills faster — lower TTFT — but each chunk displaces more decode work, increasing TPOT for concurrent sequences. Smaller chunks are gentler on ongoing decodes but stretch out the time before the new request can start generating.</p>
+
+    <p>In practice, chunk sizes are chosen empirically based on the hardware and expected traffic mix. Systems serving latency-sensitive interactive workloads tend toward smaller chunks. Batch inference systems processing large documents can afford larger ones.</p>
+
+    <h3>Why this matters more as context grows</h3>
+
+    <p>Chunked prefill has become increasingly important as context windows have expanded. A model with a 128k context window can legitimately receive prompts that would have been considered entire documents a few years ago. Without chunked prefill, a single long-context request can hold the entire serving stack hostage for seconds. With it, long-context requests become first-class citizens that can be served alongside short ones without degrading the experience for everyone else.</p>
+
+    <!-- Section 6 -->
+    <h1 class="section-h">06. Speculative decoding: reducing latency</h1>
+
+    <p>Every technique so far has targeted throughput — getting more tokens out of the hardware per second across many requests. Speculative decoding targets something different: the latency of a single sequence.</p>
+
+    <p>The fundamental constraint on decode latency is the autoregressive loop. Each token depends on all previous tokens, so you can't generate token n+1 until you have token n. This makes decode inherently serial. A 500-token response needs 500 forward passes through a 70B parameter model. There's no parallelism to exploit — or so it seems.</p>
+
+    <p>Speculative decoding breaks this constraint by introducing a second, much smaller model called the draft model. The draft model is fast — cheap enough to run that it's almost free compared to the large target model. It speculatively generates several tokens ahead, without waiting to verify them. Then the large target model verifies all the draft tokens in a single forward pass.</p>
+
+    <p>Here's why the verification pass is cheap: the target model can check all draft tokens in parallel, because it already has the full context up to each position. Verifying k tokens costs roughly the same as generating 1 token in the normal autoregressive loop. If the draft model proposed 5 tokens and the target model accepts all 5, you've paid for ~1 forward pass but received 5 tokens.</p>
+
+    <h3>Acceptance and rejection</h3>
+
+    <p>The draft model won't always be right. When it proposes a token that the target model disagrees with, the system rejects that token and all subsequent ones in the draft, then samples the correct token from the target model's distribution at the point of disagreement. This guarantees that the output distribution is identical to what you'd get from running the target model alone — speculative decoding is lossless by construction, not an approximation.</p>
+
+    <p>In practice, well-matched draft and target models achieve acceptance rates of 0.7–0.85 on typical workloads, translating to 2–4x latency reduction. The latency benefit is most pronounced for long outputs — the more tokens you need to generate, the more the serial bottleneck dominates, and the more speculative decoding helps.</p>
+
+    <h3>Variants and practical considerations</h3>
+
+    <p>The original formulation uses a separate smaller model as the draft model — often a 1B or 7B model paired with a 70B target. A popular variant called self-speculative decoding uses early exit layers of the target model itself as the draft, avoiding the need to load a separate model entirely. Another variant, Medusa, adds multiple draft heads directly to the target model and trains them jointly.</p>
+
+    <p>The main operational cost is memory: you need to load and run a draft model alongside the target. For latency-sensitive applications where a user is waiting on a response, this tradeoff is usually worth it. For offline batch inference where throughput matters more than per-request latency, it often isn't.</p>
+
+    <!-- Section 7 -->
+    <h1 class="section-h">07. Disaggregated serving: scaling production systems</h1>
+
+    <p>Everything up to this point has assumed that prefill and decode happen on the same machine, managed by the same scheduler. That assumption works at small scale. It starts to break down when you're running a large model across many GPUs serving thousands of concurrent requests.</p>
+
+    <p>The root issue is the asymmetry from section 2. Prefill is compute-bound; decode is memory-bound. These phases don't just prefer different amounts of hardware — they prefer <em>different kinds</em> of hardware. Maximising prefill throughput pushes you toward GPUs with high FLOPS and large tensor cores. Maximising decode throughput pushes you toward GPUs with high memory bandwidth and large HBM capacity. Running both on the same hardware means perpetually compromising on both.</p>
+
+    <p>There's also an interference problem. When a large prefill job lands on a machine that's also running decode, it disrupts the decode latency for every concurrent sequence on that machine. Chunked prefill ameliorates the problem but doesn't eliminate it.</p>
+
+    <p>Disaggregated serving addresses both issues by splitting the two phases onto separate machine pools. Prefill machines receive incoming requests, run the prefill pass, and produce the initial KV cache. They then transfer the KV cache over a high-speed network interconnect to decode machines, which hold the KV cache and run the autoregressive decode loop until the sequence completes.</p>
+
+    <h3>What this enables</h3>
+
+    <p>With dedicated prefill and decode fleets, you can size and tune each independently. If your traffic skews toward long prompts, scale up prefill capacity. If you're serving many short prompts with long outputs, scale up decode. You can run different GPU configurations in each fleet — high-FLOPS chips for prefill, high-bandwidth chips for decode — matching hardware to the actual resource profile of each phase.</p>
+
+    <p>This architecture also opens up better autoscaling. Prefill and decode scale along different axes — prefill throughput is roughly proportional to compute, decode throughput to memory bandwidth and concurrency. Disaggregation lets you autoscale each fleet independently rather than treating the system as a monolith.</p>
+
+    <h3>The cost: KV cache transfer</h3>
+
+    <p>The unavoidable overhead of disaggregation is the network transfer of KV caches between prefill and decode machines. For a long prompt on a large model, the KV cache can be several gigabytes. Transferring it adds latency to TTFT — the user waits not just for prefill to complete but for the KV cache to arrive at a decode machine before the first output token appears.</p>
+
+    <p>This is why disaggregated serving requires fast interconnects — NVLink between GPUs in the same node, or InfiniBand / RoCE between nodes. On clusters with slow interconnects, the transfer cost can negate the gains. On well-provisioned hardware, transfers happen in tens of milliseconds and the benefits dominate.</p>
+
+    <p>PrefillServe, DistServe, and Mooncake are examples of research systems that have explored this architecture. Production deployments at companies running frontier models at scale increasingly use some variant of disaggregated serving, though the exact implementations are rarely published in detail.</p>
+
+    <!-- Section 8 -->
+    <h1 class="section-h">08. Cost, latency, and system design tradeoffs</h1>
+
+    <p>By this point you've seen five distinct techniques — KV caching, continuous batching, chunked prefill, speculative decoding, and disaggregated serving. Each one solves a real problem. None of them is free. And they interact with each other in ways that make production system design genuinely hard.</p>
+
+    <h3>The two objectives that pull in opposite directions</h3>
+
+    <p>Almost every decision in LLM serving involves a tradeoff between throughput and latency. Throughput is how many tokens you can produce per second across all requests. Latency is how long any individual request waits. These objectives are in fundamental tension.</p>
+
+    <p>Maximising throughput means running large batches — packing as many sequences as possible onto the GPU simultaneously. But larger batches mean more competition for KV cache memory, more interference between prefill and decode, and longer queuing delays for individual requests. Latency goes up as you push throughput up.</p>
+
+    <p>The right operating point depends entirely on your application. A coding assistant where a developer is staring at a spinner has a hard latency requirement. An overnight batch job summarising documents has no latency requirement — maximising throughput and minimising cost per token is the only objective.</p>
+
+    <h3>The metrics that matter</h3>
+
+    <p><strong>Time to first token (TTFT)</strong> measures how long a user waits before seeing any output. It's dominated by prefill time and queue depth. For interactive applications, TTFT above a few hundred milliseconds starts to feel sluggish.</p>
+
+    <p><strong>Time per output token (TPOT)</strong> measures the per-step decode latency once generation has started. It determines how fast the output streams. Users are generally tolerant of slower streaming than slow TTFT — a fast start that slows down feels better than a long wait followed by fast output.</p>
+
+    <p><strong>Throughput</strong> measures tokens produced per second across the full system. It determines cost efficiency — tokens per dollar is what you're ultimately optimising at scale.</p>
+
+    <h3>Choosing your levers</h3>
+
+    <p>A useful heuristic: identify your binding constraint first, then pick the technique that addresses it. If GPU utilisation is low and throughput is below target, continuous batching and paged KV memory are the first levers to pull. If utilisation is high but latency is high, you're memory-constrained — more GPU memory, smaller models, or quantisation. If you have long prompts disrupting interactive workloads, chunked prefill. If you need lower per-user latency on decode, speculative decoding. If you're at a scale where prefill and decode interference is unavoidable, disaggregation.</p>
+
+    <p>These aren't mutually exclusive. Production systems at scale deploy most of these techniques simultaneously. vLLM, TGI, TensorRT-LLM, and SGLang all implement continuous batching, paged KV caching, and chunked prefill as baseline features. Speculative decoding and disaggregation are increasingly standard additions.</p>
+
+    <div class="callout">
+      <strong>One asymmetry, five solutions.</strong> Every technique in this post is a response to the same underlying tension: the prefill and decode phases have fundamentally different resource profiles, and forcing them to share hardware creates waste. KV caching reduces decode work. Continuous batching fills idle gaps. Chunked prefill prevents long prefills from monopolising hardware. Speculative decoding parallelises what was serial. Disaggregation separates the phases entirely.
+    </div>
+
+    <p>The story of LLM serving is, in large part, the story of increasingly sophisticated attempts to deal with this one structural asymmetry. As context windows grow longer, models get larger, and inference volumes increase, the asymmetry only gets more pronounced.</p>
+
+  </div>
+
+  <a class="back-link" href="../index.html">← back to all posts</a>
+
+  <footer>
+    <span>© 2026</span>
+    <div>
+      <a href="https://github.com/devaru-ai" target="_blank">github</a>
+      <a href="https://www.linkedin.com/in/devaru-ai/" target="_blank">linkedin</a>
+    </div>
+  </footer>
+
+</body>
+</html>

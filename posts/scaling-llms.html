@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Scaling LLMs in Practice — Arundhathi Dev</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0f0e0d;
+  --ink2:#3a3835;
+  --ink3:#7a7570;
+  --surf:#faf8f4;
+  --surf2:#f1ede6;
+  --surf3:#e8e2d8;
+  --border:#d4cdc2;
+  --border2:#bfb8b0;
+  /* diagram colors */
+  --dp-fill:#E6F1FB; --dp-stroke:#85B7EB; --dp-text:#0C447C;
+  --tp-fill:#E1F5EE; --tp-stroke:#5DCAA5; --tp-text:#085041;
+  --pp-fill:#FAEEDA; --pp-stroke:#EF9F27; --pp-text:#633806;
+  --moe-fill:#EEEDFE; --moe-stroke:#AFA9EC; --moe-text:#3C3489;
+  --router-fill:#FAEEDA; --router-stroke:#EF9F27; --router-text:#633806;
+  --active-fill:#E1F5EE; --active-stroke:#5DCAA5; --active-text:#085041;
+  --idle-fill:#F1EFE8; --idle-stroke:#B4B2A9; --idle-text:#888780;
+  --warn-fill:#FCEBEB; --warn-stroke:#F09595; --warn-text:#791F1F;
+}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.75;color:var(--ink);background:var(--surf);max-width:800px;margin:0 auto;padding:0 1.5rem 5rem}
+
+/* NAV */
+nav{display:flex;justify-content:space-between;align-items:center;padding:1.25rem 0;border-bottom:0.5px solid var(--border);margin-bottom:0}
+.nav-name{font-family:'DM Serif Display',serif;font-size:1.1rem;color:var(--ink);text-decoration:none}
+.nav-name:hover{color:var(--ink3)}
+.nav-links{list-style:none;display:flex;gap:1.5rem}
+.nav-links a{font-family:'DM Mono',monospace;font-size:11.5px;color:var(--ink3);text-decoration:none;letter-spacing:.05em}
+.nav-links a:hover{color:var(--ink)}
+
+/* HERO */
+.post-header{padding:3rem 0 2.5rem;border-bottom:1.5px solid var(--ink)}
+.post-tag{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);display:block;margin-bottom:1rem}
+.post-header h1{font-family:'DM Serif Display',serif;font-size:clamp(1.9rem,4.5vw,2.9rem);line-height:1.15;color:var(--ink);margin-bottom:1.25rem}
+.post-meta{display:flex;gap:1.5rem;font-family:'DM Mono',monospace;font-size:11.5px;color:var(--ink3)}
+
+/* TOC */
+.toc{margin:2.5rem 0;padding:1.5rem;background:var(--surf2);border-radius:8px;border:0.5px solid var(--border)}
+.toc-head{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:.75rem}
+.toc-grid{display:grid;grid-template-columns:1fr 1fr;gap:.3rem 2rem}
+.toc a{font-family:'DM Mono',monospace;font-size:12px;color:var(--ink2);text-decoration:none;display:flex;gap:.5rem}
+.toc a:hover{color:#185fa5}
+.toc-n{color:var(--ink3);min-width:1.4rem}
+
+/* BODY */
+.post-body{margin-top:3rem}
+.section-label{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin-bottom:.4rem}
+h2{font-family:'DM Serif Display',serif;font-size:1.75rem;color:var(--ink);margin-bottom:1.2rem;padding-bottom:.6rem;border-bottom:0.5px solid var(--border);margin-top:3.5rem}
+h3{font-family:'DM Sans',sans-serif;font-size:.85rem;font-weight:500;color:var(--ink);margin:1.75rem 0 .6rem;text-transform:uppercase;letter-spacing:.06em}
+p{color:var(--ink2);margin-bottom:1.1rem}
+p:last-child{margin-bottom:0}
+strong{color:var(--ink)}
+em{font-style:italic}
+code{font-family:'DM Mono',monospace;font-size:.85em;background:var(--surf3);padding:1px 5px;border-radius:3px;color:var(--ink2)}
+ul{padding-left:1.3rem;margin-bottom:1.1rem;color:var(--ink2)}
+ul li{margin-bottom:.4rem}
+
+/* CALLOUT */
+.callout{background:var(--surf2);border:0.5px solid var(--border);border-left:3px solid var(--border2);border-radius:0 8px 8px 0;padding:1.1rem 1.4rem;margin:1.75rem 0;font-size:.93rem;color:var(--ink2)}
+.callout strong{color:var(--ink)}
+
+/* WARN BOX */
+.warn-box{background:var(--warn-fill);border:0.5px solid var(--warn-stroke);border-radius:8px;padding:1rem 1.25rem;margin:1.1rem 0;font-size:.92rem;color:var(--warn-text)}
+.warn-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:.4rem;color:#A32D2D;font-weight:500}
+
+/* DIAGRAM */
+.diagram-figure{margin:2rem 0}
+.diagram-svg{width:100%;height:auto;display:block}
+figcaption{font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3);margin-top:.6rem;text-align:center}
+
+/* TABLE */
+.tradeoff-table{width:100%;border-collapse:collapse;margin:2rem 0;font-size:.88rem}
+.tradeoff-table th{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);font-weight:500;padding:.6rem 1rem;border-bottom:1.5px solid var(--ink);text-align:left;background:var(--surf)}
+.tradeoff-table td{padding:.7rem 1rem;border-bottom:0.5px solid var(--border);vertical-align:middle;color:var(--ink2)}
+.tradeoff-table tr:last-child td{border-bottom:none}
+.tradeoff-table tr:hover td{background:var(--surf2)}
+.tradeoff-table td:first-child{font-family:'DM Mono',monospace;font-size:11.5px;color:var(--ink);font-weight:500}
+.badge{display:inline-block;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.05em;padding:2px 8px;border-radius:2px}
+.badge-good{background:#E1F5EE;color:#085041}
+.badge-bad{background:#FCEBEB;color:#791F1F}
+.badge-mid{background:#FAEEDA;color:#633806}
+
+/* FOOTER */
+.back-link{display:inline-block;font-family:'DM Mono',monospace;font-size:12px;color:var(--ink3);text-decoration:none;margin-top:3.5rem;border-top:0.5px solid var(--border);padding-top:1.5rem;width:100%}
+.back-link:hover{color:var(--ink)}
+footer{display:flex;justify-content:space-between;align-items:center;padding:1.5rem 0;margin-top:1rem;border-top:0.5px solid var(--border);font-family:'DM Mono',monospace;font-size:11.5px;color:var(--ink3)}
+footer a{color:var(--ink3);text-decoration:none}
+footer a:hover{color:var(--ink)}
+footer div{display:flex;gap:1rem}
+
+/* PULLQUOTE */
+.pullquote{border-left:3px solid #185fa5;padding:.9rem 1.4rem;margin:2rem 0}
+.pullquote p{font-family:'DM Serif Display',serif;font-size:1.1rem;font-style:italic;color:var(--ink);margin:0}
+
+@media(max-width:540px){
+  .toc-grid{grid-template-columns:1fr}
+  .tradeoff-table th,.tradeoff-table td{padding:.5rem .6rem}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-name" href="../index.html">Arundhathi Dev</a>
+  <ul class="nav-links">
+    <li><a href="https://github.com/devaru-ai" target="_blank">github</a></li>
+    <li><a href="https://linkedin.com/in/devaru-ai" target="_blank">linkedin</a></li>
+  </ul>
+</nav>
+
+<div class="post-header">
+  <span class="post-tag">LLM Systems · Parallelism · MoE</span>
+  <h1>Scaling LLMs in Practice: Parallelism Strategies and the Reality of Mixture-of-Experts</h1>
+  <div class="post-meta">
+    <span>Apr 2026</span>
+    <span>18 min read</span>
+  </div>
+</div>
+
+<nav aria-label="Table of contents">
+  <div class="toc">
+    <div class="toc-head">Contents</div>
+    <div class="toc-grid">
+      <a href="#s1"><span class="toc-n">01</span>Why parallelism exists</a>
+      <a href="#s2"><span class="toc-n">02</span>DP, TP, and PP</a>
+      <a href="#s3"><span class="toc-n">03</span>Hybrid parallelism</a>
+      <a href="#s4"><span class="toc-n">04</span>Why dense models plateau</a>
+      <a href="#s5"><span class="toc-n">05</span>MoE: idea and problems</a>
+      <a href="#s6"><span class="toc-n">06</span>How MoE fixes itself</a>
+      <a href="#s7"><span class="toc-n">07</span>Dense vs MoE tradeoffs</a>
+      <a href="#s8"><span class="toc-n">08</span>Cluster topology</a>
+      <a href="#s9"><span class="toc-n">09</span>Putting it together</a>
+      <a href="#s10"><span class="toc-n">10</span>Conclusion</a>
+    </div>
+  </div>
+</nav>
+
+<div class="post-body">
+
+  <div class="pullquote">
+    <p>Training doesn't fail because of FLOPs. It fails because of memory limits, communication overhead, and load imbalance. Modern LLM scaling is no longer a compute problem — it's a communication and systems problem.</p>
+  </div>
+
+  <!-- Section 1 -->
+  <h2>01. Why parallelism exists</h2>
+
+  <p>The naive mental model of LLM training is: more GPUs = faster training. Reality is messier. Before you even think about scaling, you're hitting a wall on a single GPU.</p>
+
+  <p>Consider a 70B parameter model in BF16. Just storing the weights takes ~140 GB. Add optimizer states (Adam stores first and second moments — that's 2× parameters in FP32), and you're north of 700 GB. An A100 has 80 GB of HBM. This isn't a compute problem. It's a memory problem.</p>
+
+  <p>There are two regimes to understand:</p>
+
+  <ul>
+    <li><strong>Memory-bound:</strong> the bottleneck is loading weights/activations from HBM. Compute sits idle waiting for data.</li>
+    <li><strong>Compute-bound:</strong> the bottleneck is arithmetic throughput. Memory bandwidth is fine, ALUs are saturated.</li>
+  </ul>
+
+  <p>Large batch sizes push you toward compute-bound. Small batches and large models push you toward memory-bound. Most large-scale training sits somewhere in between — which is why the parallelism strategy you choose matters so much.</p>
+
+  <div class="callout">
+    <strong>The core question parallelism answers:</strong> how do you split a model (and its data) across GPUs such that each GPU stays busy, memory stays within bounds, and communication overhead doesn't eat your throughput?
+  </div>
+
+  <!-- Section 2 -->
+  <h2>02. Data parallelism, tensor parallelism, and pipeline parallelism</h2>
+
+  <p>There are three fundamental axes of parallelism. Each attacks a different dimension of the problem.</p>
+
+  <h3>Data parallelism (DP)</h3>
+
+  <p>The simplest idea: replicate the full model on each GPU, split the batch across them, and synchronize gradients after each backward pass via an <code>all-reduce</code>. Ring all-reduce is the standard algorithm — GPUs form a ring, each sending and receiving in a pipeline. Total data transferred is <code>2(N-1)/N × model_size</code>. It's bandwidth-efficient, but as models grow, gradient sync cost becomes significant. At 70B parameters, you're synchronizing hundreds of GBs of gradients every step.</p>
+
+  <div class="callout">
+    <strong>When DP breaks:</strong> when the model itself doesn't fit on a single GPU. Gradient sync is manageable — but if you can't even load the model, DP alone does nothing.
+  </div>
+
+  <h3>Tensor parallelism (TP)</h3>
+
+  <p>TP splits individual weight matrices across GPUs. A transformer's FFN is essentially two large matmuls. You split the first weight matrix column-wise across GPUs, compute in parallel, then row-wise split the second. Each GPU holds a slice of the weights.</p>
+
+  <p>The catch: you need <code>all-reduce</code> or <code>all-gather</code> operations after every matmul to reconstruct full activations. This is frequent, fine-grained communication. TP works well <em>within</em> a node over NVLink (~600 GB/s), but falls apart across nodes over InfiniBand (25–400 Gb/s). The bandwidth delta is an order of magnitude.</p>
+
+  <div class="callout">
+    <strong>Practical rule:</strong> TP degree is bounded by the number of GPUs in a node. 8-way TP within a DGX node is common. 16-way+ TP across nodes is almost always a mistake.
+  </div>
+
+  <h3>Pipeline parallelism (PP)</h3>
+
+  <p>PP splits layers across GPUs. GPU 0 runs layers 1–8, GPU 1 runs layers 9–16, and so on. Data flows through like an assembly line. The fundamental problem: <strong>pipeline bubbles</strong>. In a naive pipeline, GPU 1 sits idle waiting for GPU 0 to finish. With <code>k</code> pipeline stages, bubble fraction is <code>(k-1)/k</code> — at 8 stages, that's ~87.5% idle time.</p>
+
+  <p>Micro-batching fixes this. Instead of one large batch, you split it into <code>m</code> micro-batches. While GPU 1 processes micro-batch 1, GPU 0 starts on micro-batch 2. Bubbles shrink to <code>(k-1)/(m+k-1)</code> — large <code>m</code> effectively eliminates bubble overhead, at the cost of higher memory for buffered activations.</p>
+
+  <!-- Parallelism diagram — recolored -->
+  <figure class="diagram-figure">
+    <svg class="diagram-svg" viewBox="0 0 680 210" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- DATA PARALLELISM -->
+      <text x="10" y="16" font-family="'DM Mono',monospace" font-size="9.5" fill="#7a7570" letter-spacing="0.12em">DATA PARALLELISM</text>
+
+      <rect x="10" y="24" width="78" height="34" rx="3" fill="#E6F1FB" stroke="#85B7EB" stroke-width="1"/>
+      <text x="49" y="38" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#0C447C">GPU 0</text>
+      <text x="49" y="51" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#185fa5">batch A</text>
+
+      <rect x="98" y="24" width="78" height="34" rx="3" fill="#E6F1FB" stroke="#85B7EB" stroke-width="1"/>
+      <text x="137" y="38" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#0C447C">GPU 1</text>
+      <text x="137" y="51" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#185fa5">batch B</text>
+
+      <rect x="186" y="24" width="78" height="34" rx="3" fill="#E6F1FB" stroke="#85B7EB" stroke-width="1"/>
+      <text x="225" y="38" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#0C447C">GPU 2</text>
+      <text x="225" y="51" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#185fa5">batch C</text>
+
+      <line x1="49" y1="68" x2="225" y2="68" stroke="#378ADD" stroke-width="0.75" stroke-dasharray="3,2"/>
+      <text x="137" y="80" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#185fa5">all-reduce gradients</text>
+
+      <!-- TENSOR PARALLELISM -->
+      <text x="10" y="110" font-family="'DM Mono',monospace" font-size="9.5" fill="#7a7570" letter-spacing="0.12em">TENSOR PARALLELISM</text>
+
+      <rect x="10" y="118" width="92" height="34" rx="3" fill="#E1F5EE" stroke="#5DCAA5" stroke-width="1"/>
+      <text x="56" y="132" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#085041">GPU 0</text>
+      <text x="56" y="144" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#0F6E56">cols 0–N/2</text>
+
+      <rect x="112" y="118" width="92" height="34" rx="3" fill="#E1F5EE" stroke="#5DCAA5" stroke-width="1"/>
+      <text x="158" y="132" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#085041">GPU 1</text>
+      <text x="158" y="144" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#0F6E56">cols N/2–N</text>
+
+      <line x1="204" y1="135" x2="220" y2="135" stroke="#888780" stroke-width="0.75"/>
+      <polygon points="220,132 226,135 220,138" fill="#888780"/>
+
+      <rect x="226" y="118" width="60" height="34" rx="3" fill="#FAEEDA" stroke="#EF9F27" stroke-width="1"/>
+      <text x="256" y="132" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#633806">merged</text>
+      <text x="256" y="144" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#854F0B">all-gather</text>
+
+      <!-- PIPELINE PARALLELISM -->
+      <text x="340" y="16" font-family="'DM Mono',monospace" font-size="9.5" fill="#7a7570" letter-spacing="0.12em">PIPELINE PARALLELISM</text>
+
+      <rect x="340" y="24" width="86" height="34" rx="3" fill="#FAEEDA" stroke="#EF9F27" stroke-width="1"/>
+      <text x="383" y="38" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#633806">GPU 0</text>
+      <text x="383" y="51" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#854F0B">layers 1–8</text>
+
+      <line x1="426" y1="41" x2="444" y2="41" stroke="#888780" stroke-width="0.75"/>
+      <polygon points="444,38 450,41 444,44" fill="#888780"/>
+
+      <rect x="450" y="24" width="86" height="34" rx="3" fill="#FAEEDA" stroke="#EF9F27" stroke-width="1"/>
+      <text x="493" y="38" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#633806">GPU 1</text>
+      <text x="493" y="51" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#854F0B">layers 9–16</text>
+
+      <line x1="536" y1="41" x2="554" y2="41" stroke="#888780" stroke-width="0.75"/>
+      <polygon points="554,38 560,41 554,44" fill="#888780"/>
+
+      <rect x="560" y="24" width="86" height="34" rx="3" fill="#FAEEDA" stroke="#EF9F27" stroke-width="1"/>
+      <text x="603" y="38" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#633806">GPU 2</text>
+      <text x="603" y="51" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#854F0B">layers 17–24</text>
+
+      <!-- micro-batch schedule -->
+      <text x="340" y="82" font-family="'DM Mono',monospace" font-size="9" fill="#7a7570">micro-batch schedule →</text>
+      <rect x="340" y="90" width="38" height="14" rx="2" fill="#BA7517"/>
+      <rect x="382" y="90" width="38" height="14" rx="2" fill="#BA7517" opacity="0.65"/>
+      <rect x="424" y="90" width="38" height="14" rx="2" fill="#BA7517" opacity="0.42"/>
+      <rect x="466" y="90" width="38" height="14" rx="2" fill="#BA7517" opacity="0.22"/>
+      <text x="512" y="101" font-family="'DM Mono',monospace" font-size="9" fill="#7a7570">bubble shrinks</text>
+
+      <!-- footer rule -->
+      <line x1="10" y1="172" x2="660" y2="172" stroke="#d4cdc2" stroke-width="0.5"/>
+      <text x="10" y="184" font-family="'DM Mono',monospace" font-size="9" fill="#7a7570">comm cost — DP: gradient all-reduce (high)  ·  TP: per-layer all-gather (very high)  ·  PP: activation pass only (low)</text>
+    </svg>
+    <figcaption>Three parallelism axes and their communication patterns</figcaption>
+  </figure>
+
+  <!-- Section 3 -->
+  <h2>03. Hybrid parallelism: what real systems actually do</h2>
+
+  <p>No single parallelism strategy works at the scale of a 100B+ model. Real training jobs combine all three, and the combination follows from hardware topology:</p>
+
+  <ul>
+    <li><strong>TP within a node</strong> — NVLink makes fine-grained all-gathers cheap. 8-way TP across 8 A100s on a DGX node is standard.</li>
+    <li><strong>PP across nodes</strong> — inter-node bandwidth is expensive. PP only passes activations at layer boundaries, so it's efficient even over InfiniBand.</li>
+    <li><strong>DP globally</strong> — replicate the full TP+PP setup across many node groups. Gradient all-reduce can be overlapped with compute.</li>
+  </ul>
+
+  <div class="callout">
+    Frameworks like Megatron-LM formalize this as <strong>3D parallelism</strong>. The degree along each axis is a hyperparameter you tune — and it directly impacts MFU (model flops utilization), the real measure of training efficiency.
+  </div>
+
+  <!-- Section 4 -->
+  <h2>04. Why dense models stop scaling — and what MoE promises</h2>
+
+  <p>Here's the core problem with dense transformers at scale: every parameter participates in every forward pass. Compute grows linearly with parameters. You're paying full price per token, every token.</p>
+
+  <p>But for any given token, does the model need all parameters? Intuitively, no. A piece of code, a German sentence, a math equation — each likely activates different circuits in the network. <strong>What if we only activated a subset of parameters per token?</strong></p>
+
+  <p>That's Mixture-of-Experts.</p>
+
+  <!-- Section 5 -->
+  <h2>05. MoE: the core idea and the real problems</h2>
+
+  <h3>How it works</h3>
+
+  <p>In an MoE model, the FFN layer in each transformer block is replaced by <em>N</em> expert FFNs and a router (gating network). For each token, the router selects the top-<em>k</em> experts (usually k=1 or k=2), and only those experts compute. Outputs are combined via weighted sum.</p>
+
+  <p>The result: a model with 8× the parameters of a dense model might only activate the same compute per token. Mixtral 8×7B has 47B total parameters but activates ~13B per token. Parameter count and FLOPs-per-token are decoupled.</p>
+
+  <div class="callout">
+    <strong>The promise:</strong> more capacity (parameters) at similar compute cost. Better perplexity for the same training budget — assuming routing works well.
+  </div>
+
+  <!-- MoE diagram — recolored -->
+  <figure class="diagram-figure">
+    <svg class="diagram-svg" viewBox="0 0 620 185" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- Token input -->
+      <rect x="10" y="74" width="64" height="34" rx="3" fill="#F1EFE8" stroke="#B4B2A9" stroke-width="1"/>
+      <text x="42" y="88" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#444441">token</text>
+      <text x="42" y="101" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#888780">"Paris"</text>
+
+      <line x1="74" y1="91" x2="92" y2="91" stroke="#888780" stroke-width="0.75"/>
+      <polygon points="92,88 98,91 92,94" fill="#888780"/>
+
+      <!-- Router -->
+      <rect x="98" y="66" width="74" height="50" rx="3" fill="#FAEEDA" stroke="#EF9F27" stroke-width="1"/>
+      <text x="135" y="85" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#633806">router</text>
+      <text x="135" y="98" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#854F0B">top-2</text>
+      <text x="135" y="110" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#854F0B">softmax</text>
+
+      <!-- Active arrows (amber) -->
+      <line x1="172" y1="78" x2="240" y2="52" stroke="#BA7517" stroke-width="1.2"/>
+      <polygon points="236,49 243,53 237,57" fill="#BA7517"/>
+      <text x="200" y="62" font-family="'DM Mono',monospace" font-size="9" fill="#BA7517">0.6</text>
+
+      <line x1="172" y1="91" x2="240" y2="91" stroke="#BA7517" stroke-width="1.2"/>
+      <polygon points="240,88 246,91 240,94" fill="#BA7517"/>
+      <text x="200" y="86" font-family="'DM Mono',monospace" font-size="9" fill="#BA7517">0.3</text>
+
+      <!-- Skip arrow (muted) -->
+      <line x1="172" y1="104" x2="240" y2="131" stroke="#B4B2A9" stroke-width="0.75" stroke-dasharray="3,2"/>
+      <text x="196" y="127" font-family="'DM Mono',monospace" font-size="9" fill="#B4B2A9">0.1 skip</text>
+
+      <!-- Expert 1 — active (teal) -->
+      <rect x="246" y="36" width="72" height="30" rx="3" fill="#E1F5EE" stroke="#5DCAA5" stroke-width="1"/>
+      <text x="282" y="50" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#085041">expert 1</text>
+      <text x="282" y="62" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#0F6E56">active</text>
+
+      <!-- Expert 2 — active (teal) -->
+      <rect x="246" y="74" width="72" height="30" rx="3" fill="#E1F5EE" stroke="#5DCAA5" stroke-width="1"/>
+      <text x="282" y="88" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#085041">expert 2</text>
+      <text x="282" y="100" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#0F6E56">active</text>
+
+      <!-- Expert 3 — idle (gray) -->
+      <rect x="246" y="114" width="72" height="30" rx="3" fill="#F1EFE8" stroke="#B4B2A9" stroke-width="0.75"/>
+      <text x="282" y="128" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#B4B2A9">expert 3</text>
+      <text x="282" y="140" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#B4B2A9">idle</text>
+
+      <!-- Combine lines -->
+      <line x1="318" y1="51" x2="378" y2="83" stroke="#BA7517" stroke-width="0.75"/>
+      <line x1="318" y1="89" x2="378" y2="89" stroke="#BA7517" stroke-width="0.75"/>
+      <polygon points="378,86 384,89 378,92" fill="#BA7517"/>
+
+      <!-- Combine box (purple) -->
+      <rect x="384" y="72" width="72" height="34" rx="3" fill="#EEEDFE" stroke="#AFA9EC" stroke-width="1"/>
+      <text x="420" y="87" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#3C3489">combine</text>
+      <text x="420" y="100" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#534AB7">weighted sum</text>
+
+      <line x1="456" y1="89" x2="476" y2="89" stroke="#888780" stroke-width="0.75"/>
+      <polygon points="476,86 482,89 476,92" fill="#888780"/>
+
+      <!-- Output (gray) -->
+      <rect x="482" y="72" width="72" height="34" rx="3" fill="#F1EFE8" stroke="#B4B2A9" stroke-width="1"/>
+      <text x="518" y="87" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#444441">output</text>
+      <text x="518" y="100" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#888780">FFN result</text>
+
+      <line x1="10" y1="170" x2="600" y2="170" stroke="#d4cdc2" stroke-width="0.5"/>
+      <text x="10" y="182" font-family="'DM Mono',monospace" font-size="9" fill="#7a7570">only top-k experts compute per token — others receive no gradient signal</text>
+    </svg>
+    <figcaption>MoE routing — router selects top-2 experts, expert 3 stays idle this step</figcaption>
+  </figure>
+
+  <h3>The real problems</h3>
+
+
+  <div class="warn-box">
+    <span class="warn-label">load imbalance</span>
+    The router learns which experts are "good" and starts routing everything to them. A few experts become overloaded; most sit idle. You've paid for N experts but effectively trained far fewer.
+  </div>
+
+  <div class="warn-box">
+    <span class="warn-label">communication overhead</span>
+    Experts are distributed across GPUs. Routing a token to an expert on a different GPU requires an <code>all-to-all</code> — every GPU sends tokens to every other GPU. At scale, this is expensive and latency-sensitive.
+  </div>
+
+  <div class="warn-box">
+    <span class="warn-label">stragglers</span>
+    The slowest expert dictates step time. One overloaded GPU while others are near-idle means you wait. All parallelism benefits evaporate at the bottleneck.
+  </div>
+
+  <div class="warn-box">
+    <span class="warn-label">routing collapse</span>
+    Without intervention, training can collapse — the router converges to sending everything to one expert. Gradients for all others vanish. You end up with a very expensive dense model.
+  </div>
+
+  <!-- Section 6 -->
+  <h2>06. How MoE systems fix these issues</h2>
+
+  <p>Each problem has a corresponding mitigation. Understanding <em>why</em> each fix exists matters more than just knowing what it is.</p>
+
+  <p><strong>Load balancing loss</strong> adds an auxiliary loss term that penalizes uneven expert utilization. It's a soft constraint — too much and the model routes randomly, degrading quality; too little and collapse happens anyway. Tuning this coefficient is non-trivial.</p>
+
+  <p><strong>Capacity factor and token dropping</strong> give each expert a fixed buffer: <code>capacity = capacity_factor × tokens_per_batch / num_experts</code>. If an expert's buffer is full, overflow tokens are dropped — they skip the expert with only the residual contribution. This bounds compute and memory, but dropped tokens mean information loss.</p>
+
+  <p><strong>Expert parallelism</strong> distributes experts across GPUs — each GPU owns a subset. The <code>all-to-all</code> for token routing is now the key communication primitive. You're combining TP + PP + DP + EP, each tuned to cluster topology.</p>
+
+  <!-- Section 7 -->
+  <h2>07. Dense vs MoE tradeoffs</h2>
+
+  <table class="tradeoff-table">
+    <thead>
+      <tr><th>Aspect</th><th>Dense</th><th>MoE</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Compute per token</td>
+        <td><span class="badge badge-bad">High</span></td>
+        <td><span class="badge badge-good">Lower (sparse)</span></td>
+      </tr>
+      <tr>
+        <td>Memory footprint</td>
+        <td><span class="badge badge-good">Lower</span></td>
+        <td><span class="badge badge-bad">Higher (all experts loaded)</span></td>
+      </tr>
+      <tr>
+        <td>Communication overhead</td>
+        <td><span class="badge badge-good">Lower</span></td>
+        <td><span class="badge badge-bad">Higher (all-to-all)</span></td>
+      </tr>
+      <tr>
+        <td>Training stability</td>
+        <td><span class="badge badge-good">Stable</span></td>
+        <td><span class="badge badge-mid">Needs careful tuning</span></td>
+      </tr>
+      <tr>
+        <td>Serving complexity</td>
+        <td><span class="badge badge-good">Simple</span></td>
+        <td><span class="badge badge-bad">High (expert placement)</span></td>
+      </tr>
+      <tr>
+        <td>Quality per FLOP</td>
+        <td><span class="badge badge-mid">Baseline</span></td>
+        <td><span class="badge badge-good">Better (same compute)</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>When NOT to use MoE:</strong> bandwidth-constrained clusters (all-to-all kills you), latency-sensitive serving (routing overhead adds up), small-scale training (complexity not worth it below ~50B equivalent), or when you lack the engineering bandwidth to tune load balancing carefully.
+  </div>
+
+  <!-- Section 8 -->
+  <h2>08. Real-world system thinking: cluster topology matters</h2>
+
+  <p>Parallelism choices aren't made in a vacuum — they're made against a specific cluster topology. Two systems with the same GPU count can have radically different optimal strategies depending on interconnect.</p>
+
+  <ul>
+    <li><strong>Intra-node (NVLink, NVSwitch):</strong> ~600 GB/s bidirectional. Fine-grained communication (TP's frequent all-gathers) is tolerable. MoE's all-to-all is manageable within a node.</li>
+    <li><strong>Inter-node (InfiniBand):</strong> 25–400 Gb/s — orders of magnitude slower. TP across nodes is almost always wrong. PP minimizes inter-node traffic to activation transfers only. MoE's all-to-all across nodes is the single biggest bottleneck in MoE at scale.</li>
+  </ul>
+
+  <p>Scheduling and placement matter too. In an MoE system, how you assign experts to GPUs determines expected routing distance. Co-locating frequently co-activated experts reduces all-to-all traffic — inference serving systems like DeepSpeed-MoE implement expert-aware placement for exactly this reason.</p>
+
+  <div class="callout">
+    <strong>The bottleneck shifts:</strong> in dense training, the network bottleneck is gradient all-reduce (DP). In MoE training, it becomes the expert routing all-to-all. Optimizing for one doesn't optimize the other.
+  </div>
+
+  <!-- Section 9 -->
+  <h2>09. Putting it all together</h2>
+
+  <p>A realistic setup for training a 100B+ MoE model:</p>
+
+  <ul>
+    <li><strong>8-way TP within each node</strong> — NVLink handles frequent all-gather for tensor-split matmuls.</li>
+    <li><strong>PP across nodes</strong> — layers distributed across node groups. Micro-batching keeps the pipeline full.</li>
+    <li><strong>Expert parallelism across nodes</strong> — each node group owns a subset of experts. The all-to-all for routing is the main inter-node cost.</li>
+    <li><strong>DP globally</strong> — multiple copies of the full TP+PP+EP setup. Gradient all-reduce overlapped with compute during the backward pass.</li>
+  </ul>
+
+  <p>This is 4D parallelism. Getting the balance right — bubble overhead vs all-to-all latency vs gradient sync frequency vs memory per GPU — determines whether you hit 40% MFU or 60%+. That gap is the difference between a model training in 3 months vs 5 months.</p>
+
+  <!-- Section 10 -->
+  <h2>10. Conclusion</h2>
+
+  <p>Modern LLM scaling is not "more parameters → better models." It's "better systems → more efficient use of the compute we have."</p>
+
+  <p>Parallelism strategies exist to fight memory limits and communication overhead. MoE exists to decouple parameter count from compute. But MoE creates its own communication and stability problems that require careful engineering to resolve.</p>
+
+  <p>Engineers need to understand <em>why</em> each technique exists — not just what it does — in order to debug a training run running at 35% MFU and raise it to 55%. That’s where the real work is.</p>
+
+  <div class="callout">
+    <strong>The real skill:</strong> knowing which axis of parallelism is your bottleneck, given your hardware topology and your model architecture. Everything else follows from that.
+  </div>
+
+</div><!-- /.post-body -->
+
+<a class="back-link" href="../index.html">← back to all posts</a>
+
+<footer>
+  <span>© 2026</span>
+  <div>
+    <a href="https://github.com/devaru-ai" target="_blank">github</a>
+    <a href="https://linkedin.com/in/devaru-ai" target="_blank">linkedin</a>
+  </div>
+</footer>
+
+</body>
+</html>

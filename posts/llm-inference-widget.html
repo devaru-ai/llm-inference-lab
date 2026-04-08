@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>From Prefill to Decode — LLM Inference Explained</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff;
+    --bg2: #f8f6f0;
+    --border: #d3d1c7;
+    --border2: #e8e5da;
+    --text: #1a1a18;
+    --text2: #4a4845;
+    --text3: #888780;
+    --purple-bg: #EEEDFE;
+    --purple-mid: #534AB7;
+    --purple-dark: #3C3489;
+    --purple-border: #AFA9EC;
+    --teal-bg: #E1F5EE;
+    --teal-mid: #1D9E75;
+    --teal-dark: #0F6E56;
+    --amber-bg: #FAEEDA;
+    --amber-mid: #EF9F27;
+    --amber-dark: #633806;
+    --amber-border: #EF9F27;
+    --dot-inactive: #e0ddd6;
+    --dot-done: #9FE1CB;
+    --nav-hover: #f1efe8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #18161300;
+      --bg2: #1e1c19;
+      --border: #3a3835;
+      --border2: #2a2825;
+      --text: #e8e5da;
+      --text2: #b8b5aa;
+      --text3: #888780;
+      --purple-bg: #26215C;
+      --purple-mid: #7F77DD;
+      --purple-dark: #CECBF6;
+      --purple-border: #3C3489;
+      --teal-bg: #04342C;
+      --teal-mid: #1D9E75;
+      --teal-dark: #9FE1CB;
+      --amber-bg: #412402;
+      --amber-mid: #BA7517;
+      --amber-dark: #FAC775;
+      --amber-border: #854F0B;
+      --dot-inactive: #3a3835;
+      --dot-done: #085041;
+      --nav-hover: #2a2825;
+    }
+  }
+  html, body {
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+  }
+  body { padding: 2rem 0rem; max-width: 1000px; margin: 0 auto; }
+
+  .header { margin-bottom: 2rem; }
+  .header h1 { font-size: 22px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+  .header p { font-size: 14px; color: var(--text3); }
+
+  .progress { display: flex; gap: 6px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .dot { width: 32px; height: 6px; border-radius: 3px; background: var(--dot-inactive); cursor: pointer; transition: background .2s, transform .15s; }
+  .dot.active { background: var(--purple-mid); transform: scaleY(1.5); }
+  .dot.done { background: var(--dot-done); }
+
+  .stage-label { font-size: 11px; color: var(--text3); letter-spacing: .05em; text-transform: uppercase; font-weight: 500; margin-bottom: .5rem; }
+  .stage-title { font-size: 22px; font-weight: 500; color: var(--text); margin-bottom: 1rem; line-height: 1.3; }
+
+  .tag {
+    display: inline-block; font-size: 11px; font-weight: 500;
+    color: var(--purple-dark); background: var(--purple-bg);
+    border: 0.5px solid var(--purple-border); border-radius: 4px;
+    padding: 2px 8px; margin-bottom: 12px;
+  }
+
+  .stage-body { display: flex; gap: 1.5rem; align-items: flex-start; flex-wrap: wrap; }
+  .body-text { font-size: 15px; color: var(--text2); line-height: 1.7; flex: 1; min-width: 200px; }
+  .visual-wrap {
+    flex: 0 0 220px; background: var(--bg2); border: 0.5px solid var(--border);
+    border-radius: 10px; padding: 14px; min-height: 100px;
+  }
+
+  .constraint-label { font-size: 11px; font-weight: 500; color: var(--teal-dark); margin-bottom: 4px; }
+  .vis-bar-bg { height: 8px; border-radius: 4px; background: var(--border2); overflow: hidden; margin: 4px 0 10px; }
+  .vis-bar { height: 100%; border-radius: 4px; transition: width .4s; }
+  .vis-hint { font-size: 11px; color: var(--text3); margin-bottom: 10px; }
+
+  .vis-token {
+    display: inline-block; padding: 3px 7px; border-radius: 5px;
+    border: 0.5px solid var(--border); background: var(--bg);
+    color: var(--text2); font-size: 12px; margin: 2px; transition: all .3s;
+  }
+  .vis-token.active { background: var(--purple-bg); border-color: var(--purple-mid); color: var(--purple-dark); font-weight: 500; }
+  .vis-token.cached { background: var(--teal-bg); border-color: var(--teal-mid); color: var(--teal-dark); }
+  .vis-token.draft { background: var(--amber-bg); border-color: var(--amber-border); color: var(--amber-dark); }
+
+  .vis-gpu {
+    border: 0.5px solid var(--border); border-radius: 8px;
+    padding: 8px; background: var(--bg); margin-bottom: 6px; font-size: 11px;
+  }
+  .vis-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .vis-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .tradeoff-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0; border-bottom: 0.5px solid var(--border2);
+    font-size: 12px;
+  }
+  .tradeoff-opt { font-weight: 500; color: var(--purple-dark); }
+  .tradeoff-cost { color: var(--text3); }
+
+  .nav {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 1.5rem; padding-top: 1rem; border-top: 0.5px solid var(--border2);
+  }
+  .nav-btn {
+    font-size: 13px; padding: 8px 18px; border-radius: 8px;
+    border: 0.5px solid var(--border); background: transparent;
+    cursor: pointer; color: var(--text2); transition: background .15s; font-family: inherit;
+  }
+  .nav-btn:hover { background: var(--nav-hover); }
+  .nav-btn:disabled { opacity: .3; cursor: default; }
+  .counter { font-size: 12px; color: var(--text3); }
+
+  .footer { margin-top: 2rem; padding-top: 1rem; border-top: 0.5px solid var(--border2); font-size: 12px; color: var(--text3); }
+  .footer a { color: var(--text3); text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>From Prefill to Decode</h1>
+  <p>How modern LLM inference actually works — click through each stage</p>
+</div>
+
+<div class="progress" id="dots"></div>
+<div id="stage-content"></div>
+<div class="nav">
+  <button class="nav-btn" id="prev-btn" onclick="go(-1)">← Prev</button>
+  <span class="counter" id="counter"></span>
+  <button class="nav-btn" id="next-btn" onclick="go(1)">Next →</button>
+</div>
+
+
+<script>
+const stages = [
+  {
+    label: "The prompt arrives",
+    title: "What happens when you send a message",
+    tag: "Request lifecycle",
+    body: "Your prompt is converted to a sequence of token IDs — integers that map to subwords. The serving system receives this list, allocates an available model instance, and queues inference. Nothing has been computed yet. The GPU is just waiting.",
+    vis() {
+      const tokens = ["The", "▁cat", "▁sat", "▁on", "▁the", "▁mat"];
+      return `<div class="vis-hint">Tokenised prompt</div>
+${tokens.map(t => `<span class="vis-token active">${t}</span>`).join("")}
+<div style="font-size:11px;color:var(--text3);margin-top:10px">→ [464, 3797, 3332, 261, 290, 3521]</div>
+<div style="font-size:11px;color:var(--text3);margin-top:4px">→ model queue</div>`;
+    }
+  },
+  {
+    label: "Prefill vs decode",
+    title: "Two phases, two bottlenecks",
+    tag: "Core insight",
+    body: "Prefill processes all input tokens in one parallel pass — it's compute-bound, like a big matrix multiply. Decode generates output one token at a time, limited by how fast weights can be streamed from GPU memory. These phases need fundamentally different hardware resources.",
+    vis() {
+      return `<div class="constraint-label">Prefill — compute bound</div>
+<div class="vis-bar-bg"><div class="vis-bar" style="width:90%;background:var(--purple-mid)"></div></div>
+<div class="vis-hint">GPU cores: saturated</div>
+<div class="constraint-label">Decode — memory bound</div>
+<div class="vis-bar-bg"><div class="vis-bar" style="width:28%;background:var(--teal-mid)"></div></div>
+<div class="vis-hint">GPU cores: underutilised</div>
+<div style="font-size:11px;color:var(--text3)">Memory bandwidth is the ceiling</div>`;
+    }
+  },
+  {
+    label: "KV cache",
+    title: "Avoid recomputing what you already know",
+    tag: "Optimisation 1",
+    body: "During prefill, the model computes key and value tensors for every input token. Instead of discarding them, the serving system caches these KV pairs. Each decode step only needs to compute KV for the single new token, then attend over the full cache. This drops per-step work from O(n²) to O(n).",
+    vis() {
+      return `<div class="vis-hint">Cached from prefill</div>
+${ ["The","▁cat","▁sat","▁on","▁the","▁mat"].map(t=>`<span class="vis-token cached">${t}</span>`).join("") }
+<div class="vis-hint" style="margin-top:8px">New token (decode step 1)</div>
+<span class="vis-token active">▁quietly</span>
+<div style="font-size:11px;color:var(--teal-dark);margin-top:10px;font-weight:500">O(n) work per step, not O(n²)</div>`;
+    }
+  },
+  {
+    label: "Continuous batching",
+    title: "Keep GPUs busy between requests",
+    tag: "Optimisation 2",
+    body: "Static batching waits for every sequence in a batch to finish before accepting new work — the GPU sits idle waiting for the slowest request. Continuous batching inserts new requests into freed slots on every iteration. Throughput jumps because the hardware is never waiting.",
+    vis() {
+      return `<div class="vis-hint">Iteration 12 — batch state</div>
+<div class="vis-gpu">
+  <div style="font-weight:500;color:var(--text2);margin-bottom:4px">Req A</div>
+  <div class="vis-bar-bg"><div class="vis-bar" style="width:100%;background:var(--dot-done)"></div></div>
+  <div style="font-size:10px;color:var(--text3)">Done — slot freed</div>
+</div>
+<div class="vis-gpu">
+  <div style="font-weight:500;color:var(--text2);margin-bottom:4px">Req B</div>
+  <div class="vis-bar-bg"><div class="vis-bar" style="width:65%;background:var(--purple-mid)"></div></div>
+</div>
+<div class="vis-gpu" style="border-color:var(--teal-mid)">
+  <div style="font-weight:500;color:var(--teal-dark);margin-bottom:4px">Req C — just joined ↗</div>
+  <div class="vis-bar-bg"><div class="vis-bar" style="width:5%;background:var(--teal-mid)"></div></div>
+</div>`;
+    }
+  },
+  {
+    label: "Chunked prefill",
+    title: "Long prompts shouldn't stall everyone",
+    tag: "Optimisation 3",
+    body: "A 100k-token prefill can monopolise the GPU for seconds, blocking all ongoing decode sequences. Chunked prefill splits large prefills into smaller pieces and interleaves them with decode steps. Time-to-first-token stays predictable even under heavy context loads.",
+    vis() {
+      const items = [
+        { label: "Chunk 1/4 (prefill)", col: "var(--purple-mid)" },
+        { label: "Decode step", col: "var(--teal-mid)" },
+        { label: "Chunk 2/4 (prefill)", col: "var(--purple-mid)" },
+        { label: "Decode step", col: "var(--teal-mid)" },
+        { label: "Chunk 3/4 (prefill)", col: "var(--purple-mid)" },
+        { label: "Decode step", col: "var(--teal-mid)" },
+        { label: "Chunk 4/4 (prefill)", col: "var(--purple-mid)" },
+      ];
+      return `<div class="vis-hint">Iteration timeline (interleaved)</div>
+${items.map(i => `<div class="vis-row"><div class="vis-dot" style="background:${i.col}"></div><span style="font-size:11px;color:var(--text2)">${i.label}</span></div>`).join("")}`;
+    }
+  },
+  {
+    label: "Speculative decoding",
+    title: "Draft fast, verify in parallel",
+    tag: "Optimisation 4",
+    body: "A small, fast draft model generates several candidate tokens. The large model verifies all of them in a single forward pass — same cost as generating one token. If they match, you get multiple tokens for one step's work. If not, you resample from the first mismatch and continue.",
+    vis() {
+      return `<div class="vis-hint">Draft model proposes</div>
+${ ["▁the","▁quick","▁brown","▁fox"].map(t=>`<span class="vis-token draft">${t}</span>`).join("") }
+<div class="vis-hint" style="margin-top:8px">Large model verifies (1 pass)</div>
+${ ["▁the ✓","▁quick ✓","▁brown ✓","▁fox ✗"].map((t,i)=>`<span class="vis-token ${i<3?"cached":""}">${t}</span>`).join("") }
+<div style="font-size:11px;color:var(--teal-dark);margin-top:10px;font-weight:500">3 tokens accepted · 1 resampled</div>`;
+    }
+  },
+  {
+    label: "Disaggregated serving",
+    title: "Separate prefill and decode at scale",
+    tag: "Production systems",
+    body: "Prefill and decode have different optimal hardware. Disaggregated serving splits them onto separate machine pools — compute-dense nodes for prefill, memory-bandwidth-optimised nodes for decode — with KV cache transferred between them over a high-speed interconnect.",
+    vis() {
+      return `<div class="vis-hint">Serving cluster</div>
+<div class="vis-gpu" style="border-color:var(--purple-mid)">
+  <div style="font-weight:500;color:var(--purple-dark);margin-bottom:2px">Prefill fleet</div>
+  <div style="font-size:11px;color:var(--text3)">High FLOPS · compute bound</div>
+</div>
+<div style="font-size:11px;color:var(--text3);text-align:center;margin:4px 0">KV cache transfer ↓</div>
+<div class="vis-gpu" style="border-color:var(--teal-mid)">
+  <div style="font-weight:500;color:var(--teal-dark);margin-bottom:2px">Decode fleet</div>
+  <div style="font-size:11px;color:var(--text3)">High memory BW · memory bound</div>
+</div>`;
+    }
+  },
+  {
+    label: "Tradeoffs",
+    title: "Every optimisation costs something",
+    tag: "System design",
+    body: "Each technique trades one constraint for another. Understanding which bottleneck dominates your workload — compute, memory, latency, or complexity — tells you which levers to pull. There's no universal right answer; the right system matches its hardware to its workload.",
+    vis() {
+      const rows = [
+        ["KV cache", "GPU memory usage"],
+        ["Cont. batching", "Scheduling complexity"],
+        ["Chunked prefill", "TTFT vs throughput"],
+        ["Spec. decoding", "Draft model cost"],
+        ["Disaggregation", "Infra complexity"],
+      ];
+      return rows.map(([opt, cost]) => `
+<div class="tradeoff-row">
+  <span class="tradeoff-opt">${opt}</span>
+  <span class="tradeoff-cost">↔ ${cost}</span>
+</div>`).join("");
+    }
+  }
+];
+
+let cur = 0;
+
+function render() {
+  const s = stages[cur];
+  document.getElementById("dots").innerHTML = stages.map((_, i) =>
+    `<div class="dot ${i === cur ? "active" : i < cur ? "done" : ""}" onclick="jump(${i})" title="${stages[i].label}"></div>`
+  ).join("");
+  document.getElementById("stage-content").innerHTML = `
+    <div class="stage-label">${s.label}</div>
+    <div class="stage-title">${s.title}</div>
+    <div class="stage-body">
+      <div class="body-text"><span class="tag">${s.tag}</span><br><br>${s.body}</div>
+      <div class="visual-wrap">${s.vis()}</div>
+    </div>`;
+  document.getElementById("counter").textContent = `${cur + 1} / ${stages.length}`;
+  document.getElementById("prev-btn").disabled = cur === 0;
+  document.getElementById("next-btn").disabled = cur === stages.length - 1;
+}
+
+function go(d) { cur = Math.max(0, Math.min(stages.length - 1, cur + d)); render(); }
+function jump(i) { cur = i; render(); }
+render();
+</script>
+</body>
+</html>

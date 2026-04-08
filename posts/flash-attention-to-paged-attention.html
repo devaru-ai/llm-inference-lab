@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>From FlashAttention to PagedAttention</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+--ink:#0f0e0d;
+--ink2:#3a3835;
+--ink3:#7a7570;
+--surf:#faf8f4;
+--surf2:#f1ede6;
+--surf3:#e8e2d8;
+--border:#d4cdc2;
+--border2:#bfb8b0;
+--flash:#185fa5;
+--flash-bg:#E6F1FB;
+--flash-text:#0C447C;
+--paged:#0F6E56;
+--paged-bg:#E1F5EE;
+--paged-text:#085041;
+--warn-bg:#FAEEDA;
+--warn-text:#633806;
+}
+body{font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.75;color:var(--ink);background:var(--surf);max-width:800px;margin:0 auto;padding:2rem 1.5rem 5rem}
+
+.hero{padding:3rem 0 2.5rem;border-bottom:1.5px solid var(--ink)}
+.eyebrow{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin-bottom:1rem}
+h1{font-family:'DM Serif Display',serif;font-size:clamp(2rem,5vw,3rem);line-height:1.15;color:var(--ink);margin-bottom:1.25rem}
+h1 em{font-style:italic;color:var(--flash)}
+.hero p{font-size:1.1rem;color:var(--ink2);max-width:620px;font-weight:300}
+.hero-tags{margin-top:1.5rem;display:flex;gap:.6rem;flex-wrap:wrap}
+.tag{font-family:'DM Mono',monospace;font-size:11px;padding:3px 9px;border-radius:2px;border:1px solid var(--border2);color:var(--ink3)}
+
+.toc{margin:2.5rem 0;padding:1.5rem;background:var(--surf2);border-radius:8px;border:1px solid var(--border)}
+.toc-head{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:.75rem}
+.toc-grid{display:grid;grid-template-columns:1fr 1fr;gap:.3rem 2rem}
+.toc a{font-family:'DM Mono',monospace;font-size:12px;color:var(--ink2);text-decoration:none;display:flex;gap:.5rem}
+.toc a:hover{color:var(--flash)}
+.toc-n{color:var(--ink3);min-width:1.4rem}
+
+section{margin:3.5rem 0}
+h2{font-family:'DM Serif Display',serif;font-size:1.8rem;color:var(--ink);margin-bottom:1.25rem;padding-bottom:.6rem;border-bottom:1px solid var(--border)}
+h3{font-family:'DM Sans',sans-serif;font-size:.85rem;font-weight:500;color:var(--ink);margin:1.75rem 0 .6rem;text-transform:uppercase;letter-spacing:.06em}
+p{color:var(--ink2);margin-bottom:1.1rem}
+p:last-child{margin-bottom:0}
+strong{color:var(--ink)}
+
+.pullquote{border-left:3px solid var(--flash);padding:.9rem 1.4rem;margin:2rem 0}
+.pullquote p{font-family:'DM Serif Display',serif;font-size:1.15rem;font-style:italic;color:var(--ink);margin:0}
+
+.callout{border-radius:8px;padding:1.1rem 1.4rem;margin:1.75rem 0;border:1px solid var(--border)}
+.callout.flash{background:var(--flash-bg);border-color:#85B7EB}
+.callout.paged{background:var(--paged-bg);border-color:#5DCAA5}
+.callout.warn{background:var(--warn-bg);border-color:#EF9F27}
+.callout.neutral{background:var(--surf2)}
+.callout-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:.5rem}
+.callout.flash .callout-label{color:var(--flash-text)}
+.callout.paged .callout-label{color:var(--paged-text)}
+.callout.warn .callout-label{color:var(--warn-text)}
+.callout.neutral .callout-label{color:var(--ink3)}
+.callout p{font-size:.93rem;margin:0}
+.callout.flash p{color:var(--flash-text)}
+.callout.paged p{color:var(--paged-text)}
+.callout.warn p{color:var(--warn-text)}
+
+.diagram{background:var(--surf2);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin:1.75rem 0;font-family:'DM Mono',monospace;font-size:12.5px;line-height:1.9}
+.diagram-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:.75rem}
+.d-row{display:flex;align-items:center;gap:.6rem;margin:.15rem 0;flex-wrap:wrap}
+.d-box{border-radius:3px;padding:3px 10px;font-size:12px;font-weight:500;white-space:nowrap}
+.d-box.q{background:#EEEDFE;color:#3C3489}
+.d-box.k{background:#E6F1FB;color:#0C447C}
+.d-box.v{background:#E1F5EE;color:#085041}
+.d-box.attn{background:#FAEEDA;color:#633806}
+.d-box.out{background:var(--surf);color:var(--ink);border:1px solid var(--border2)}
+.d-box.bad{background:#FCEBEB;color:#791F1F}
+.d-box.sram{background:#EAF3DE;color:#27500A}
+.d-box.hbm{background:#F1EFE8;color:#444441}
+.d-box.page{background:#EEEDFE;color:#3C3489}
+.d-box.map{background:var(--surf2);color:var(--ink2);border:1px solid var(--border)}
+.d-arrow{color:var(--ink3);font-size:13px}
+.d-note{font-size:11px;color:var(--ink3);margin-left:.3rem}
+.d-bad{color:#A32D2D;font-size:11px;margin-left:.3rem}
+.d-good{color:#0F6E56;font-size:11px;margin-left:.3rem}
+.d-sep{border-top:1px dashed var(--border2);margin:.75rem 0}
+
+.compare-wrap{overflow-x:auto;margin:2rem 0}
+table.compare{width:100%;border-collapse:collapse;font-size:.88rem;min-width:480px}
+.compare th{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);font-weight:500;padding:.6rem 1rem;border-bottom:1.5px solid var(--ink);text-align:left;background:var(--surf)}
+.compare td{padding:.7rem 1rem;border-bottom:1px solid var(--border);vertical-align:top;color:var(--ink2)}
+.compare tr:last-child td{border-bottom:none}
+.compare tr:hover td{background:var(--surf2)}
+.compare td:first-child{font-family:'DM Mono',monospace;font-size:11.5px;color:var(--ink);font-weight:500}
+.badge{display:inline-block;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.06em;padding:2px 8px;border-radius:2px}
+.badge.f{background:var(--flash-bg);color:var(--flash-text)}
+.badge.p{background:var(--paged-bg);color:var(--paged-text)}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.5rem 0}
+.feature-card{border:1px solid var(--border);border-radius:12px;padding:1.1rem 1.25rem;background:var(--surf)}
+.feature-card h4{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem}
+.feature-card.f h4{color:var(--flash)}
+.feature-card p{font-size:.88rem;color:var(--ink2);margin:0}
+
+.together-box{border:1.5px solid var(--ink);border-radius:12px;padding:1.75rem 2rem;margin:2rem 0}
+.together-box p{color:var(--ink2);margin-bottom:.8rem}
+.together-box p:last-child{margin:0;font-style:italic;color:var(--ink3);font-size:.93rem}
+
+.limits-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.75rem 0}
+.limit-card{border-radius:8px;padding:1rem 1.1rem;border:1px solid var(--border)}
+.limit-card.f{background:var(--flash-bg);border-color:#85B7EB}
+.limit-card.p{background:var(--paged-bg);border-color:#5DCAA5}
+.limit-card h4{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem}
+.limit-card.f h4{color:var(--flash-text)}
+.limit-card.p h4{color:var(--paged-text)}
+.limit-card ul{padding-left:1rem;font-size:.87rem}
+.limit-card.f ul{color:var(--flash-text)}
+.limit-card.p ul{color:var(--paged-text)}
+.limit-card li{margin-bottom:.25rem}
+
+.conclusion{border-top:1.5px solid var(--ink);padding:2.5rem 0 0;margin-top:3.5rem}
+.conclusion p{font-size:1.05rem;color:var(--ink2);margin-bottom:1.1rem}
+.conclusion p.big{font-family:'DM Serif Display',serif;font-size:1.25rem;font-style:italic;color:var(--ink)}
+
+.foot{font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3);border-top:1px solid var(--border);padding-top:1.25rem;margin-top:3rem}
+
+@media(max-width:540px){
+.toc-grid,.two-col,.limits-grid{grid-template-columns:1fr}
+.compare th,.compare td{padding:.5rem .7rem}
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="eyebrow">Memory systems · LLM inference</div>
+  <h1>From <em>FlashAttention</em> to PagedAttention:<br>how memory shapes LLM inference</h1>
+  <p>Transformer performance isn't limited by compute — it's limited by how efficiently we move and store data.</p>
+  <div class="hero-tags">
+    <span class="tag">~14 min read</span>
+    <span class="tag">Attention mechanisms</span>
+    <span class="tag">KV cache</span>
+    <span class="tag">Serving systems</span>
+  </div>
+</div>
+
+<nav>
+  <div class="toc">
+    <div class="toc-head">Contents</div>
+    <div class="toc-grid">
+      <a href="#problem"><span class="toc-n">01</span>The attention bottleneck</a>
+      <a href="#flash"><span class="toc-n">02</span>FlashAttention</a>
+      <a href="#limits"><span class="toc-n">03</span>What Flash doesn't fix</a>
+      <a href="#kv"><span class="toc-n">04</span>KV cache explosion</a>
+      <a href="#paged"><span class="toc-n">05</span>PagedAttention</a>
+      <a href="#serving"><span class="toc-n">06</span>Why it matters for serving</a>
+      <a href="#compare"><span class="toc-n">07</span>Direct comparison</a>
+      <a href="#together"><span class="toc-n">08</span>How they work together</a>
+      <a href="#tradeoffs"><span class="toc-n">09</span>Tradeoffs</a>
+      <a href="#conclusion"><span class="toc-n">10</span>System-level takeaway</a>
+    </div>
+  </div>
+</nav>
+
+<div class="pullquote">
+  <p>Two innovations. Two different problems. One shared insight: in modern AI systems, memory is the constraint — not math.</p>
+</div>
+
+<p>When engineers talk about making LLMs faster, they reach for bigger GPUs or clever quantization. But the real lever has almost always been memory — specifically, how the system reads, writes, and manages data during inference. FlashAttention and PagedAttention are the two most important answers to that problem, and understanding both gives you a clear mental model for why modern LLM infrastructure looks the way it does.</p>
+
+<section id="problem">
+  <h2>01 — The attention bottleneck</h2>
+  <p>Standard self-attention follows a deceptively simple formula: compute query, key, and value projections from the input, then compute attention scores, apply softmax, and weight the values. The problem is what lives in the middle.</p>
+
+  <div class="diagram">
+    <div class="diagram-label">Standard attention — the naive path</div>
+    <div class="d-row">
+      <span class="d-box q">Q (N × d)</span>
+      <span class="d-arrow">×</span>
+      <span class="d-box k">Kᵀ (d × N)</span>
+      <span class="d-arrow">→</span>
+      <span class="d-box bad">Attention matrix (N × N)</span>
+      <span class="d-bad">materializes in HBM</span>
+    </div>
+    <div class="d-row" style="padding-left:1.5rem"><span class="d-arrow">↓</span></div>
+    <div class="d-row">
+      <span class="d-box attn">Softmax</span>
+      <span class="d-arrow">→</span>
+      <span class="d-box v">× V</span>
+      <span class="d-arrow">→</span>
+      <span class="d-box out">Output</span>
+    </div>
+  </div>
+
+  <p>That N × N attention matrix is the villain. For a sequence of 4,096 tokens, it's a 16-million-element matrix — written to GPU memory in full, read back for the softmax, written again, read again for the value multiplication. With 32 attention heads, that's 32 round trips to HBM per layer.</p>
+
+  <div class="callout neutral">
+    <div class="callout-label">The key insight</div>
+    <p>Memory reads and writes dominate attention cost — not the matrix multiplications. The FLOPs are cheap. Moving data between compute units and memory is what kills performance.</p>
+  </div>
+
+  <p>This distinction between compute-bound and memory-bound operations is foundational. A GPU can perform arithmetic far faster than it can fetch data from memory. When an operation spends most of its time waiting for data, it's memory-bound — and that's exactly what standard attention is.</p>
+</section>
+
+<section id="flash">
+  <h2>02 — FlashAttention: tiling the computation</h2>
+  <p>FlashAttention's core idea is simple enough to state in one sentence: never materialize the full attention matrix. Instead, compute attention in tiles that fit entirely in on-chip SRAM.</p>
+
+  <div class="diagram">
+    <div class="diagram-label">FlashAttention — tiled execution</div>
+    <div class="d-row">
+      <span class="d-box hbm">Q, K, V in HBM</span>
+      <span class="d-arrow">→</span>
+      <span class="d-note">split into blocks</span>
+    </div>
+    <div class="d-sep"></div>
+    <div class="d-row"><span style="font-size:11px;color:#7a7570;font-style:italic">for each tile:</span></div>
+    <div class="d-row" style="padding-left:1rem">
+      <span class="d-box sram">Q_block + K_block → SRAM</span>
+      <span class="d-good">stays on-chip</span>
+    </div>
+    <div class="d-row" style="padding-left:1rem"><span class="d-arrow">↓</span></div>
+    <div class="d-row" style="padding-left:1rem">
+      <span class="d-box attn">partial attention + online softmax</span>
+    </div>
+    <div class="d-row" style="padding-left:1rem"><span class="d-arrow">↓</span></div>
+    <div class="d-row" style="padding-left:1rem">
+      <span class="d-box out">accumulate into output</span>
+      <span class="d-good">write once to HBM</span>
+    </div>
+  </div>
+
+  <h3>Three mechanisms that make it work</h3>
+  <p><strong>Tiling:</strong> Q, K, and V are divided into blocks sized to fit in SRAM. Each block is loaded once, processed completely, and the intermediate result is accumulated — no round-trips to HBM for partial results.</p>
+  <p><strong>SRAM vs HBM:</strong> SRAM (the GPU's on-chip cache) is roughly 10× faster than HBM but tiny — typically 20–40MB on an A100 vs 80GB of HBM. FlashAttention's entire optimization is about keeping hot data in SRAM as long as possible.</p>
+  <p><strong>Online softmax:</strong> The standard softmax requires seeing all scores before computing any probabilities. FlashAttention uses a numerically stable online algorithm that updates running statistics tile-by-tile, never needing the full row materialized at once.</p>
+
+  <div class="callout flash">
+    <div class="callout-label">The elegant tradeoff</div>
+    <p>FlashAttention trades redundant memory movement for recomputation — and that's a good trade on modern GPUs. Recomputing a tile is cheap compared to writing a 16M-element matrix to HBM and reading it back twice.</p>
+  </div>
+
+  <p>The results are substantial: FlashAttention reduces the memory footprint of attention from O(N²) to O(N), enables sequences 4–8× longer than standard attention on the same hardware, and improves wall-clock speed by 2–4× on real workloads.</p>
+</section>
+
+<section id="limits">
+  <h2>03 — What FlashAttention doesn't solve</h2>
+  <p>This is the section most explainers skip — and it's the one that connects FlashAttention to PagedAttention in a coherent way.</p>
+  <p>FlashAttention optimizes <em>within a single forward pass</em>. It makes the attention computation itself faster and less memory-hungry during training and single-request inference. But it does nothing for the problems that emerge when you're running a serving system with hundreds of concurrent users generating responses token by token.</p>
+
+  <div class="two-col">
+    <div class="feature-card f">
+      <h4>What Flash fixes</h4>
+      <p>Memory IO during attention computation. Intermediate matrix materialization. Sequence length scaling in a single pass.</p>
+    </div>
+    <div class="feature-card" style="border-color:#bfb8b0">
+      <h4>What Flash leaves untouched</h4>
+      <p>KV cache size across decode steps. Memory fragmentation across concurrent requests. Batching efficiency under variable load.</p>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <div class="callout-label">The transition point</div>
+    <p>FlashAttention is a training and prefill optimization. When you move to autoregressive decode at serving scale, a different memory problem takes over — and that's what PagedAttention addresses.</p>
+  </div>
+</section>
+
+<section id="kv">
+  <h2>04 — The KV cache explosion</h2>
+  <p>During autoregressive generation, each new token needs to attend to every token before it. To avoid recomputing keys and values for previous tokens on every step, the serving system caches them — that's the KV cache.</p>
+  <p>The KV cache size scales as: <strong>2 × layers × heads × head_dim × sequence_length × batch_size × dtype_bytes</strong>. For a 70B model serving 100 concurrent users with 4K context, you're looking at hundreds of gigabytes. The problem isn't just size — it's how memory gets allocated.</p>
+
+  <div class="diagram">
+    <div class="diagram-label">Naive KV cache allocation</div>
+    <div class="d-row">
+      <span class="d-box out">Request A</span>
+      <span class="d-arrow">→</span>
+      <span class="d-box bad" style="flex:1;text-align:center">pre-allocated 4K block (mostly empty)</span>
+    </div>
+    <div class="d-row">
+      <span class="d-box out">Request B</span>
+      <span class="d-arrow">→</span>
+      <span class="d-box bad" style="flex:1;text-align:center">pre-allocated 4K block (mostly empty)</span>
+    </div>
+    <div class="d-row">
+      <span class="d-box out">Request C</span>
+      <span class="d-arrow">→</span>
+      <span class="d-box bad" style="flex:1;text-align:center">pre-allocated 4K block (mostly empty)</span>
+    </div>
+    <div class="d-sep"></div>
+    <div class="d-row">
+      <span class="d-bad" style="margin:0">Result: 60–80% of allocated memory is wasted. GPU OOMs before compute saturation.</span>
+    </div>
+  </div>
+
+  <p>The naïve approach pre-allocates a contiguous memory block per request at its maximum possible length. Since you don't know how long responses will be, you reserve for the worst case. Most of that memory sits unused. When requests finish at different lengths, the freed blocks can't be easily reused — classic memory fragmentation.</p>
+</section>
+
+<section id="paged">
+  <h2>05 — PagedAttention: virtual memory for KV cache</h2>
+  <p>PagedAttention borrows the OS concept of virtual memory: decouple the logical view of a sequence from its physical memory layout. Instead of one contiguous block per request, the KV cache is divided into fixed-size pages that can live anywhere in GPU memory.</p>
+
+  <div class="diagram">
+    <div class="diagram-label">PagedAttention — non-contiguous allocation</div>
+    <div class="d-row"><span style="font-size:11px;color:#7a7570">Logical sequence:</span></div>
+    <div class="d-row">
+      <span class="d-box out">[T1]</span>
+      <span class="d-box out">[T2]</span>
+      <span class="d-box out">[T3]</span>
+      <span class="d-box out">[T4]</span>
+      <span class="d-box out">[T5]</span>
+      <span class="d-box out">[T6]</span>
+    </div>
+    <div class="d-sep"></div>
+    <div class="d-row"><span style="font-size:11px;color:#7a7570">Physical memory (pages, anywhere in GPU RAM):</span></div>
+    <div class="d-row">
+      <span class="d-box page">[Page A]</span><span class="d-note">T1–T2</span>
+      <span class="d-box page" style="margin-left:.6rem">[Page F]</span><span class="d-note">T3–T4</span>
+      <span class="d-box page" style="margin-left:.6rem">[Page C]</span><span class="d-note">T5–T6</span>
+    </div>
+    <div class="d-sep"></div>
+    <div class="d-row"><span style="font-size:11px;color:#7a7570">Block table (logical → physical mapping):</span></div>
+    <div class="d-row">
+      <span class="d-box map">T1–T2 → Page A</span>
+      <span class="d-box map" style="margin-left:.5rem">T3–T4 → Page F</span>
+      <span class="d-box map" style="margin-left:.5rem">T5–T6 → Page C</span>
+    </div>
+  </div>
+
+  <p>Pages are allocated on demand as tokens are generated. When a request ends, its pages are freed immediately and made available to any new request — no size constraints, no fragmentation. A block table maps each request's logical token positions to physical page locations at runtime.</p>
+
+  <div class="callout paged">
+    <div class="callout-label">The core insight</div>
+    <p>PagedAttention decouples logical sequence layout from physical memory layout — the same insight that lets modern OSes run many processes on limited physical RAM. Near-zero fragmentation and near-100% memory utilization become achievable.</p>
+  </div>
+
+  <p>The attention computation itself is modified to look up physical page locations via the block table on each decode step. The mathematical result is identical to standard attention — only the memory access pattern changes.</p>
+</section>
+
+<section id="serving">
+  <h2>06 — Why this transforms serving</h2>
+  <p>PagedAttention isn't just an optimization — it unlocks a fundamentally different operating mode for inference servers.</p>
+  <p><strong>Continuous batching</strong> becomes viable. Because memory is allocated in small pages and freed immediately, the server can add new requests to the batch mid-flight as others complete — no waiting to assemble a fixed batch. GPU utilization stays high continuously rather than spiking and dipping.</p>
+  <p><strong>Memory efficiency</strong> jumps dramatically. vLLM's benchmarks show 2–4× throughput improvement over static allocation on identical hardware — the difference is almost entirely from eliminated fragmentation.</p>
+  <p><strong>Copy-on-write sharing</strong> becomes possible. Multiple requests sharing a common prefix (e.g. a system prompt) can share the same physical KV cache pages, with pages only duplicated when they diverge. This alone can halve memory usage in multi-tenant chat APIs.</p>
+
+  <div class="callout paged">
+    <div class="callout-label">The dependency</div>
+    <p>Without PagedAttention, continuous batching would collapse under memory fragmentation. The two techniques are inseparable in practice — PagedAttention is what makes high-throughput serving economically viable.</p>
+  </div>
+</section>
+
+<section id="compare">
+  <h2>07 — Direct comparison</h2>
+  <div class="compare-wrap">
+    <table class="compare">
+      <thead>
+        <tr>
+          <th>Dimension</th>
+          <th><span class="badge f">FlashAttention</span></th>
+          <th><span class="badge p">PagedAttention</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>What it optimizes</td><td>Attention compute &amp; memory IO</td><td>KV cache memory management</td></tr>
+        <tr><td>Core mechanism</td><td>Tiled SRAM computation, online softmax</td><td>Non-contiguous paged allocation, block table</td></tr>
+        <tr><td>Problem solved</td><td>Quadratic memory in attention matrix</td><td>Fragmentation across concurrent requests</td></tr>
+        <tr><td>Scope</td><td>Within a single forward pass</td><td>Across multiple decode steps + requests</td></tr>
+        <tr><td>Used in</td><td>Training + inference (prefill)</td><td>Serving systems (decode)</td></tr>
+        <tr><td>Primary benefit</td><td>Longer context, faster attention</td><td>Higher concurrency, better GPU utilization</td></tr>
+        <tr><td>Origin</td><td>Dao et al. (2022)</td><td>vLLM / Kwon et al. (2023)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>The key word is <em>orthogonal</em>. These frameworks solve problems at different levels of the system and during different phases of generation. One doesn't subsume the other — they compose.</p>
+</section>
+
+<section id="together">
+  <h2>08 — How they work together</h2>
+  <p>In a production serving system, both are active simultaneously — but operating on different problems at different timescales.</p>
+  <p>During the <strong>prefill phase</strong>, FlashAttention handles the full-context attention computation efficiently: tiled execution, SRAM-resident intermediates, no N×N matrix materialization. The KV cache for the prompt is written to paged memory blocks managed by PagedAttention.</p>
+  <p>During the <strong>decode phase</strong>, FlashAttention handles each new token's attention over the cache. PagedAttention manages where those cache entries live as the sequence grows, allocating new pages on demand and maintaining the block table for non-contiguous lookup.</p>
+
+  <div class="together-box">
+    <p>FlashAttention optimizes <em>how tokens attend to each other</em> — the computation itself. PagedAttention optimizes <em>where tokens live in memory</em> — the storage and retrieval system. Together they address both sides of the memory problem: reducing unnecessary IO within a pass, and eliminating waste across passes.</p>
+    <p>"Two sides of the same shift — one optimizes memory access during computation, the other optimizes memory allocation across time."</p>
+  </div>
+</section>
+
+<section id="tradeoffs">
+  <h2>09 — Tradeoffs and limitations</h2>
+  <p>Neither technique is free. Understanding the costs is what separates a surface-level understanding from a production-ready one.</p>
+  <div class="limits-grid">
+    <div class="limit-card f">
+      <h4>FlashAttention limitations</h4>
+      <ul>
+        <li>Complex custom CUDA kernels — hardware-specific, requires careful tuning</li>
+        <li>Not all attention variants supported (some sparse patterns, custom masking)</li>
+        <li>Recomputation adds FLOPs during backprop (acceptable tradeoff, but a real one)</li>
+        <li>Implementation complexity — debugging is harder than standard attention</li>
+      </ul>
+    </div>
+    <div class="limit-card p">
+      <h4>PagedAttention limitations</h4>
+      <ul>
+        <li>Indirection overhead — every attention step requires block table lookup</li>
+        <li>Non-contiguous memory access can reduce cache locality</li>
+        <li>Scheduler complexity increases with dynamic page management</li>
+        <li>Memory overhead from the block table itself (minor but real)</li>
+      </ul>
+    </div>
+  </div>
+  <p>In practice, these costs are almost always worth it — the performance gains are not marginal. But knowing the tradeoffs matters when you're debugging latency regressions or designing hardware-specific serving stacks.</p>
+</section>
+
+<div class="conclusion" id="conclusion">
+  <div class="eyebrow">System-level takeaway</div>
+  <p class="big">"Modern LLM systems are not limited by algorithms — they are limited by memory hierarchy."</p>
+  <p>As models scale, the bottleneck shifts from raw compute to how efficiently the system can move and store the data those computations require. FlashAttention and PagedAttention are two sides of that same shift: one eliminates unnecessary memory traffic during attention computation, the other eliminates wasted memory across the full lifecycle of a serving request.</p>
+  <p>Understanding them together — as complementary solutions to a single underlying constraint — is what lets you reason clearly about LLM infrastructure. The question is never just "which framework?" It's "where is the memory bottleneck, and what layer does it live at?"</p>
+</div>
+
+<div class="foot">Topics: FlashAttention · PagedAttention · KV cache · attention mechanisms · LLM serving · memory-bound compute · vLLM</div>
+
+</body>
+</html>
